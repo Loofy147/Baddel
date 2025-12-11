@@ -88,8 +88,9 @@ class _HomeDeckScreenState extends State<HomeDeckScreen> {
                               const Text("No items yet.\nBe the first to upload!", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
                               const SizedBox(height: 20),
                               ElevatedButton(
-                                 onPressed: () => setState(() {}), // Refresh
-                                 child: const Text("Refresh Deck")
+                                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const UploadScreen())),
+                                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2962FF)),
+                                child: const Text("Be the First to Upload!", style: TextStyle(color: Colors.white)),
                               )
                             ],
                           ),
@@ -200,21 +201,34 @@ class _HomeDeckScreenState extends State<HomeDeckScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          _actionBtn(Icons.close, Colors.red, () => controller.swipe(CardSwiperDirection.left)),
-          _actionBtn(Icons.bolt, Colors.amber, () {}), // Super Like / Fire Sale
-          _actionBtn(Icons.favorite, Colors.green, () => controller.swipe(CardSwiperDirection.right)),
+          _actionBtn(Icons.close, Colors.red, "Pass", () => controller.swipe(CardSwiperDirection.left)),
+          _actionBtn(Icons.bolt, Colors.amber, "Super Like (Coming Soon)", null), // Super Like / Fire Sale
+          _actionBtn(Icons.favorite, Colors.green, "Make a Deal", () => controller.swipe(CardSwiperDirection.right)),
         ],
       ),
     );
   }
 
-  Widget _actionBtn(IconData icon, Color color, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 60, height: 60,
-        decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.grey[900], border: Border.all(color: color, width: 2)),
-        child: Icon(icon, color: color, size: 30),
+  Widget _actionBtn(IconData icon, Color color, String tooltip, VoidCallback? onTap) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: onTap != null ? Colors.grey[900] : Colors.grey[900]!.withOpacity(0.5),
+              border: Border.all(color: onTap != null ? color : Colors.grey, width: 2),
+            ),
+            child: Icon(icon, color: onTap != null ? color : Colors.grey, size: 30),
+          ),
+        ),
       ),
     );
   }
