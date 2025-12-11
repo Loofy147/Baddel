@@ -14,6 +14,7 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
   late TabController _tabController;
   final TextEditingController _cashController = TextEditingController();
   String? _selectedSwapItemId;
+  double _hybridCashAmount = 0; // The extra cash added
 
   @override
   void initState() {
@@ -142,115 +143,108 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
 
   Widget _buildSwapTab() {
     final service = SupabaseService();
+    // Assuming 50,000 DA is max top-up for UI niceness
+    final double maxTopUp = widget.item.price * 1.0;
 
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("Select from your Garage:", style: TextStyle(color: Colors.grey)),
-          const SizedBox(height: 20),
-
-          // REAL INVENTORY FETCH
-          Expanded( // Changed from SizedBox to Expanded to take available space
+          // 1. SELECT ITEM
+          const Text("1. Select item from your Garage:", style: TextStyle(color: Colors.grey)),
+          const SizedBox(height: 10),
+          Expanded(
+            flex: 2,
             child: FutureBuilder<List<Item>>(
               future: service.getMyInventory(),
               builder: (context, snapshot) {
-                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                 if (!snapshot.hasData || snapshot.data!.isEmpty) return _emptyGarageWidget();
 
-                final myItems = snapshot.data!;
-                if (myItems.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.garage, color: Colors.grey, size: 40),
-                        const Text("Your Garage is Empty", style: TextStyle(color: Colors.grey)),
-                        TextButton(
-                          // In a real app, verify navigation stack
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text("Go Upload First")
-                        )
-                      ],
-                    ),
-                  );
-                }
-
-                return ListView.builder(
+                 final myItems = snapshot.data!;
+                 return ListView.builder(
                   scrollDirection: Axis.horizontal,
                   itemCount: myItems.length,
                   itemBuilder: (ctx, index) {
                     final item = myItems[index];
                     final isSelected = _selectedSwapItemId == item.id;
-
                     return GestureDetector(
                       onTap: () => setState(() => _selectedSwapItemId = item.id),
                       child: Container(
-                        width: 140,
-                        margin: const EdgeInsets.only(right: 15, bottom: 10),
+                        width: 120,
+                        margin: const EdgeInsets.only(right: 10),
                         decoration: BoxDecoration(
                           color: isSelected ? const Color(0xFFBB86FC).withOpacity(0.2) : Colors.grey[900],
-                          borderRadius: BorderRadius.circular(15),
                           border: Border.all(
                             color: isSelected ? const Color(0xFFBB86FC) : Colors.transparent,
                             width: 2
                           ),
-                          image: DecorationImage(
-                             image: NetworkImage(item.imageUrl),
-                             fit: BoxFit.cover,
-                             colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.4), BlendMode.darken)
-                          )
+                          borderRadius: BorderRadius.circular(10),
+                          image: DecorationImage(image: NetworkImage(item.imageUrl), fit: BoxFit.cover, colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.5), BlendMode.darken))
                         ),
-                        alignment: Alignment.bottomCenter,
-                        padding: const EdgeInsets.all(8),
-                        child: Text(
-                          item.title,
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                        ),
+                        child: Center(child: Text(item.title, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 11))),
                       ),
                     );
                   },
-                );
-              },
+                 );
+              }
             ),
           ),
 
-          const SizedBox(height: 20),
+          const Divider(color: Colors.grey),
 
-          // SEND BUTTON (WIRED TO SUPABASE)
+          // 2. THE HYBRID SLIDER (Advanced Feature)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text("2. Add Cash Top-up?", style: TextStyle(color: Colors.grey)),
+              Text("+ ${_hybridCashAmount.toInt()} DZD", style: const TextStyle(color: Color(0xFF00E676), fontWeight: FontWeight.bold, fontSize: 16)),
+            ],
+          ),
+          Slider(
+            value: _hybridCashAmount,
+            min: 0,
+            max: 50000, // Hardcoded max for demo, logically should be dynamic
+            activeColor: const Color(0xFF00E676),
+            inactiveColor: Colors.grey[800],
+            divisions: 50, // Steps of 1000 DA
+            label: "+ ${_hybridCashAmount.toInt()} DA",
+            onChanged: (val) => setState(() => _hybridCashAmount = val),
+          ),
+
+          const Spacer(),
+
+          // 3. SUBMIT
           ElevatedButton(
             onPressed: () async {
-              if (_selectedSwapItemId == null) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("⚠️ Select an item to swap")));
-                return;
-              }
+              if (_selectedSwapItemId == null) return; // Validation
 
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🔄 Sending Proposal...")));
-
-              final success = await service.createOffer(
+              await service.createOffer(
                 targetItemId: widget.item.id,
                 sellerId: widget.item.ownerId,
-                cashAmount: 0,
+                cashAmount: _hybridCashAmount.toInt(), // Pass the hybrid cash
                 offeredItemId: _selectedSwapItemId
               );
-
-              if(mounted) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(success ? "🔄 Swap Proposal Sent!" : "❌ Failed to send offer")));
-              }
+              if(mounted) Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🚀 Hybrid Offer Sent!")));
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFBB86FC),
               foregroundColor: Colors.black,
               minimumSize: const Size(double.infinity, 50),
             ),
-            child: const Text("PROPOSE SWAP", style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text("SEND PROPOSAL", style: TextStyle(fontWeight: FontWeight.bold)),
           )
         ],
       ),
+    );
+  }
+
+  Widget _emptyGarageWidget() {
+    return Container(
+       width: double.infinity,
+       decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(10)),
+       child: const Center(child: Text("Empty Garage. Upload items first!", style: TextStyle(color: Colors.grey)))
     );
   }
 }

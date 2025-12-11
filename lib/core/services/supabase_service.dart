@@ -146,4 +146,30 @@ class SupabaseService {
         .eq('seller_id', myId) // Currently just showing Incoming Offers
         .order('created_at');
   }
+
+  // 8. SEND MESSAGE
+  Future<void> sendMessage(String offerId, String content) async {
+    final myId = _client.auth.currentUser?.id;
+    if (myId == null) return;
+
+    await _client.from('messages').insert({
+      'offer_id': offerId,
+      'sender_id': myId,
+      'content': content,
+    });
+  }
+
+  // 9. LISTEN TO CHAT (Stream)
+  Stream<List<Map<String, dynamic>>> getChatStream(String offerId) {
+    return _client
+        .from('messages')
+        .stream(primaryKey: ['id'])
+        .eq('offer_id', offerId)
+        .order('created_at', ascending: true); // Oldest first
+  }
+
+  // 10. ACCEPT DEAL (Change status to allow chatting)
+  Future<void> acceptOffer(String offerId) async {
+    await _client.from('offers').update({'status': 'accepted'}).eq('id', offerId);
+  }
 }
