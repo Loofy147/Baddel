@@ -1,4 +1,5 @@
 import 'package:baddel/models/item_model.dart';
+import 'package:baddel/services/supabase_service.dart';
 import 'package:flutter/material.dart';
 
 class ActionSheet extends StatefulWidget {
@@ -12,6 +13,7 @@ class ActionSheet extends StatefulWidget {
 class _ActionSheetState extends State<ActionSheet> {
   String _offerAmount = '';
   Item? _selectedSwapItem;
+  bool _isLoading = false;
 
   // Placeholder for user's items in their "Garage"
   final List<Item> _userItems = [
@@ -48,6 +50,45 @@ class _ActionSheetState extends State<ActionSheet> {
         );
       },
     );
+  }
+
+  Future<void> _sendCashOffer(VoidCallback closeSheet) async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final actorId = locator<SupabaseService>().client.auth.currentUser!.id;
+      await locator<SupabaseService>().client.from('actions').insert({
+        'actor_id': actorId,
+        'item_id': widget.item.id,
+        'type': 'Right_Cash',
+        'offer_value': int.parse(_offerAmount),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cash offer sent successfully!')),
+        );
+        closeSheet(); // Close the numeric pad sheet
+        Navigator.pop(context); // Close the main action sheet
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error sending offer: $error'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -132,16 +173,13 @@ class _ActionSheetState extends State<ActionSheet> {
           );
         }).toList(),
         const SizedBox(height: 20),
-        ElevatedButton(
-          onPressed: () {
-            // TODO: Logic to send cash offer
-            print('Cash offer sent: $_offerAmount DA');
-            closeSheet(); // Close the numeric pad sheet
-            Navigator.pop(context); // Close the main action sheet
-          },
-          style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
-          child: const Text('Send Offer'),
-        ),
+        _isLoading
+            ? const CircularProgressIndicator()
+            : ElevatedButton(
+                onPressed: () => _sendCashOffer(closeSheet),
+                style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
+                child: const Text('Send Offer'),
+              ),
       ],
     );
   }

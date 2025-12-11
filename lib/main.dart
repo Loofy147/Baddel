@@ -1,15 +1,20 @@
-import 'package:baddel/screens/main_screen.dart';
+import 'package:baddel/screens/splash_screen.dart';
+import 'package:baddel/services/supabase_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  await dotenv.load(fileName: ".env");
+
   await Supabase.initialize(
-    // TODO: Replace with your own Supabase URL and anon key
-    url: 'YOUR_SUPABASE_URL',
-    anonKey: 'YOUR_SUPABASE_ANON_KEY',
+    url: dotenv.env['SUPABASE_URL']!,
+    anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
   );
+
+  setupLocator();
 
   runApp(const MyApp());
 }
@@ -31,7 +36,7 @@ class MyApp extends StatelessWidget {
           error: Color(0xFFFF1744),
         ),
       ),
-      home: const MainScreen(),
+      home: const SplashScreen(),
     );
   }
 }

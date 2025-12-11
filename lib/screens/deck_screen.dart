@@ -1,8 +1,10 @@
 import 'package:baddel/models/item_model.dart';
+import 'package:baddel/services/supabase_service.dart';
 import 'package:baddel/widgets/action_sheet.dart';
 import 'package:baddel/widgets/item_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class DeckScreen extends StatefulWidget {
   const DeckScreen({Key? key}) : super(key: key);
@@ -13,30 +15,35 @@ class DeckScreen extends StatefulWidget {
 
 class _DeckScreenState extends State<DeckScreen> {
   final CardSwiperController controller = CardSwiperController();
+  final SupabaseClient _client = locator<SupabaseService>().client;
+  late Future<List<Item>> _itemsFuture;
 
-  final List<Item> items = [
-    Item(
-      id: '1',
-      title: 'PlayStation 5',
-      price: '85,000',
-      location: 'Oran',
-      imageUrl: 'https://i.ibb.co/683gR2Q/ps5.webp',
-    ),
-    Item(
-      id: '2',
-      title: 'iPhone 13 Pro',
-      price: '150,000',
-      location: 'Algiers',
-      imageUrl: 'https://i.ibb.co/FbfV5r3/iphone13.webp',
-    ),
-    Item(
-      id: '3',
-      title: 'Gaming PC',
-      price: '250,000',
-      location: 'Constantine',
-      imageUrl: 'https://i.ibb.co/k2GzT2d/gamingpc.webp',
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _itemsFuture = _fetchItems();
+  }
+
+  Future<List<Item>> _fetchItems() async {
+    final userId = _client.auth.currentUser!.id;
+    final response = await _client
+        .from('items')
+        .select()
+        .not('user_id', 'eq', userId)
+        .order('created_at', ascending: false);
+
+    final List<Item> items = (response as List).map((data) {
+      return Item(
+        id: data['id'],
+        title: data['title'],
+        price: data['price'].toString(),
+        location: 'Oran', // Placeholder
+        imageUrl: data['image_url'],
+      );
+    }).toList();
+
+    return items;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -55,28 +62,44 @@ class _DeckScreenState extends State<DeckScreen> {
         ],
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: CardSwiper(
-                controller: controller,
-                cardsCount: items.length,
-                onSwipe: _onSwipe,
-                onUndo: _onUndo,
-                allowedSwipeDirection: const AllowedSwipeDirection.only(left: true),
-                numberOfCardsDisplayed: 3,
-                backCardOffset: const Offset(40, 40),
-                padding: const EdgeInsets.all(24.0),
-                cardBuilder: (
-                  context,
-                  index,
-                  horizontalThresholdPercentage,
-                  verticalThresholdPercentage,
-                ) =>
-                    ItemCard(item: items[index]),
-              ),
-            ),
-          ],
+        child: FutureBuilder<List<Item>>(
+          future: _itemsFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Center(child: Text('Error: ${snapshot.error}'));
+            }
+            final items = snapshot.data!;
+            if (items.isEmpty) {
+              return const Center(child: Text('No items available in the deck.'));
+            }
+            return Column(
+              children: [
+                Expanded(
+                  child: CardSwiper(
+                    controller: controller,
+                    cardsCount: items.length,
+                    onSwipe: (previousIndex, currentIndex, direction) =>
+                        _onSwipe(previousIndex, currentIndex, direction, items),
+                    onUndo: _onUndo,
+                    allowedSwipeDirection: const AllowedSwipeDirection.only(left: true),
+                    numberOfCardsDisplayed: 3,
+                    backCardOffset: const Offset(40, 40),
+                    padding: const EdgeInsets.all(24.0),
+                    cardBuilder: (
+                      context,
+                      index,
+                      horizontalThresholdPercentage,
+                      verticalThresholdPercentage,
+                    ) =>
+                        ItemCard(item: items[index]),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -86,6 +109,7 @@ class _DeckScreenState extends State<DeckScreen> {
     int previousIndex,
     int? currentIndex,
     CardSwiperDirection direction,
+    List<Item> items,
   ) {
     if (direction == CardSwiperDirection.right) {
       _showActionSheet(items[previousIndex]);
