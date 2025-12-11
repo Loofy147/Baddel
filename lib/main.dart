@@ -11,6 +11,18 @@ void main() async {
     anonKey: 'YOUR_SUPABASE_ANON_KEY',
   );
 
+  // 🟢 ANONYMOUS AUTH (Temporary for testing "Wild" mode)
+  // This gives the app a valid User ID so DB writes don't fail.
+  try {
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session == null) {
+      await Supabase.instance.client.auth.signInAnonymously();
+      print("👻 Signed in Anonymously!");
+    }
+  } catch(e) {
+    print("Auth Error: $e");
+  }
+
   runApp(const BaddelApp());
 }
 

@@ -1,3 +1,4 @@
+import 'package:baddel/core/services/supabase_service.dart';
 import 'package:baddel/ui/widgets/action_sheet.dart';
 import 'package:baddel/ui/screens/garage/upload_screen.dart';
 import 'package:flutter/material.dart';
@@ -14,13 +15,7 @@ class HomeDeckScreen extends StatefulWidget {
 
 class _HomeDeckScreenState extends State<HomeDeckScreen> {
   final CardSwiperController controller = CardSwiperController();
-
-  // 🧪 MOCK DATA (Until you have real data in Supabase)
-  List<Item> items = [
-    Item(id: '1', title: 'PlayStation 5', price: 65000, imageUrl: 'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3', acceptsSwaps: true, locationName: 'El Biar'),
-    Item(id: '2', title: 'Clio 4 GT Line', price: 2800000, imageUrl: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2', acceptsSwaps: false, locationName: 'Oran'),
-    Item(id: '3', title: 'iPhone 13 Pro', price: 95000, imageUrl: 'https://images.unsplash.com/photo-1632661674596-df8be070a5c5', acceptsSwaps: true, locationName: 'Setif'),
-  ];
+  final _supabaseService = SupabaseService();
 
   @override
   Widget build(BuildContext context) {
@@ -28,49 +23,72 @@ class _HomeDeckScreenState extends State<HomeDeckScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // 1. TOP BAR
-            _buildTopBar(),
+            _buildTopBar(), // Keep your top bar
 
-            // 2. THE DECK
+            // THE REAL DECK FETCHED FROM DB
             Expanded(
-              child: CardSwiper(
-                controller: controller,
-                cardsCount: items.length,
-                onSwipe: _onSwipe,
-                cardBuilder: (context, index, percentThresholdX, percentThresholdY) {
-                  return _buildCard(items[index]);
+              child: FutureBuilder<List<Item>>(
+                future: _supabaseService.getFeedItems(),
+                builder: (context, snapshot) {
+                  // 1. LOADING STATE
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                     return const Center(child: CircularProgressIndicator(color: Color(0xFF2962FF)));
+                  }
+
+                  // 2. ERROR OR EMPTY
+                  if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.layers_clear, size: 60, color: Colors.grey),
+                          const SizedBox(height: 10),
+                          const Text("No items yet.\nBe the first to upload!", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+                          const SizedBox(height: 20),
+                          ElevatedButton(
+                             onPressed: () => setState(() {}), // Refresh
+                             child: const Text("Refresh Deck")
+                          )
+                        ],
+                      ),
+                    );
+                  }
+
+                  // 3. REAL DATA
+                  final realItems = snapshot.data!;
+                  return CardSwiper(
+                    controller: controller,
+                    cardsCount: realItems.length,
+                    onSwipe: (prev, curr, dir) => _onSwipe(prev, curr, dir, realItems), // Note: we pass list here
+                    cardBuilder: (context, index, x, y) {
+                      return _buildCard(realItems[index]);
+                    },
+                  );
                 },
               ),
             ),
 
-            // 3. ACTION BUTTONS
-            _buildBottomControls(),
+            _buildBottomControls(), // Keep bottom controls
           ],
         ),
       ),
     );
   }
 
-  // --- LOGIC ---
-  bool _onSwipe(int previousIndex, int? currentIndex, CardSwiperDirection direction) {
-    if (direction == CardSwiperDirection.right) {
-      // 1. Show Visual Feedback
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text("Opening Negotiation..."),
-        duration: Duration(milliseconds: 500)
-      ));
-
-      // 2. Open the Cockpit
-      Future.delayed(const Duration(milliseconds: 300), () {
-        showModalBottomSheet(
-          context: context,
-          isScrollControlled: true, // Allows full height
-          backgroundColor: Colors.transparent,
-          builder: (context) => ActionSheet(item: items[previousIndex]),
-        );
-      });
-    }
-    return true;
+  // NOTE: Update _onSwipe signature to accept the List<Item> so it knows which item was swiped
+  bool _onSwipe(int previousIndex, int? currentIndex, CardSwiperDirection direction, List<Item> realItems) {
+     if (direction == CardSwiperDirection.right) {
+        // ... use realItems[previousIndex] instead of global items variable ...
+        Future.delayed(const Duration(milliseconds: 300), () {
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (context) => ActionSheet(item: realItems[previousIndex]),
+            );
+        });
+     }
+     return true;
   }
 
   // --- WIDGETS ---

@@ -1,3 +1,5 @@
+import 'package:baddel/core/services/supabase_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
@@ -102,10 +104,40 @@ class _UploadScreenState extends State<UploadScreen> {
 
             // 4. SUBMIT BUTTON
             ElevatedButton(
-              onPressed: () {
-                // TODO: Upload to Supabase
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🚀 Uploading to Garage...")));
-                Future.delayed(const Duration(seconds: 2), () => Navigator.pop(context));
+              onPressed: () async {
+                // 1. Validation
+                if (_imageFile == null || _titleController.text.isEmpty || _priceController.text.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("⚠️ Please fill all fields")));
+                  return;
+                }
+
+                // 2. Show Loading
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🚀 Uploading to Supabase...")));
+
+                final service = SupabaseService();
+
+                // 3. Upload Image
+                final imageUrl = await service.uploadImage(_imageFile!);
+
+                if (imageUrl == null) {
+                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Image Upload Failed")));
+                   return;
+                }
+
+                // 4. Create Database Entry
+                final success = await service.postItem(
+                  title: _titleController.text,
+                  price: int.parse(_priceController.text),
+                  imageUrl: imageUrl,
+                  acceptsSwaps: _acceptsSwaps,
+                );
+
+                if (success) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Item Live in the Deck!")));
+                  Navigator.pop(context); // Close screen
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Database Error. Check Console.")));
+                }
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF2962FF),
