@@ -17,6 +17,7 @@ class _UploadScreenState extends State<UploadScreen> {
   final _titleController = TextEditingController();
   final _priceController = TextEditingController();
   bool _acceptsSwaps = true;
+  bool _isUploading = false;
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
@@ -105,56 +106,64 @@ class _UploadScreenState extends State<UploadScreen> {
 
             // 4. SUBMIT BUTTON
             ElevatedButton(
-              onPressed: () async {
+              onPressed: _isUploading ? null : () async {
                 // 1. Validation
                 if (_imageFile == null || _titleController.text.isEmpty || _priceController.text.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("⚠️ Please fill all fields")));
                   return;
                 }
 
-                // 2. GET LOCATION
-                Position? position;
+                setState(() => _isUploading = true);
+
                 try {
-                   LocationPermission permission = await Geolocator.checkPermission();
-                   if (permission == LocationPermission.denied) {
-                     permission = await Geolocator.requestPermission();
-                   }
+                  // 2. GET LOCATION
+                  Position? position;
+                  try {
+                     LocationPermission permission = await Geolocator.checkPermission();
+                     if (permission == LocationPermission.denied) {
+                       permission = await Geolocator.requestPermission();
+                     }
 
-                   if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
-                      position = await Geolocator.getCurrentPosition();
-                   }
-                } catch(e) {
-                  print("GPS Error: $e"); // Fallback will happen in service
-                }
+                     if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
+                        position = await Geolocator.getCurrentPosition();
+                     }
+                  } catch(e) {
+                    print("GPS Error: $e"); // Fallback will happen in service
+                  }
 
-                // 3. Show Loading
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🚀 Uploading to Supabase...")));
+                  // 3. Show Loading
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🚀 Uploading to Supabase...")));
 
-                final service = SupabaseService();
+                  final service = SupabaseService();
 
-                // 4. Upload Image
-                final imageUrl = await service.uploadImage(_imageFile!);
+                  // 4. Upload Image
+                  final imageUrl = await service.uploadImage(_imageFile!);
 
-                if (imageUrl == null) {
-                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Image Upload Failed")));
-                   return;
-                }
+                  if (imageUrl == null) {
+                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Image Upload Failed")));
+                     return;
+                  }
 
-                // 5. Create Database Entry with Geolocation
-                final success = await service.postItem(
-                  title: _titleController.text,
-                  price: int.parse(_priceController.text),
-                  imageUrl: imageUrl,
-                  acceptsSwaps: _acceptsSwaps,
-                  latitude: position?.latitude,   // NEW
-                  longitude: position?.longitude, // NEW
-                );
+                  // 5. Create Database Entry with Geolocation
+                  final success = await service.postItem(
+                    title: _titleController.text,
+                    price: int.parse(_priceController.text),
+                    imageUrl: imageUrl,
+                    acceptsSwaps: _acceptsSwaps,
+                    latitude: position?.latitude,   // NEW
+                    longitude: position?.longitude, // NEW
+                  );
 
-                if (success) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Item Live in the Deck!")));
-                  Navigator.pop(context); // Close screen
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Database Error. Check Console.")));
+                  if (success) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Item Live in the Deck!")));
+                    Navigator.pop(context); // Close screen
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Database Error. Check Console.")));
+                  }
+                } finally {
+                  if (mounted) {
+                    setState(() => _isUploading = false);
+                  }
                 }
               },
               style: ElevatedButton.styleFrom(
@@ -162,7 +171,9 @@ class _UploadScreenState extends State<UploadScreen> {
                 foregroundColor: Colors.white,
                 minimumSize: const Size(double.infinity, 50),
               ),
-              child: const Text("POST ITEM", style: TextStyle(fontWeight: FontWeight.bold)),
+              child: _isUploading
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text("POST ITEM", style: TextStyle(fontWeight: FontWeight.bold)),
             )
           ],
         ),
