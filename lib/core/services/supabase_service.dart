@@ -172,4 +172,35 @@ class SupabaseService {
   Future<void> acceptOffer(String offerId) async {
     await _client.from('offers').update({'status': 'accepted'}).eq('id', offerId);
   }
+
+  // 11. GET USER PROFILE (Stats & Badges)
+  Future<Map<String, dynamic>?> getUserProfile() async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return null;
+
+    try {
+      // Fetch User Row
+      final user = await _client.from('users').select().eq('id', userId).single();
+
+      // Fetch Item Counts (Active vs Sold)
+      final items = await _client.from('items').select('status').eq('owner_id', userId);
+      final activeCount = items.where((i) => i['status'] == 'active').length;
+      final soldCount = items.where((i) => i['status'] == 'sold').length;
+
+      return {
+        ...user,
+        'active_items': activeCount,
+        'sold_items': soldCount,
+      };
+    } catch (e) {
+      print('🔴 Error fetching profile: $e');
+      return null;
+    }
+  }
+
+  // 12. DELETE ITEM (or Mark Sold)
+  Future<void> deleteItem(String itemId) async {
+    // We don't actually delete; we mark as 'deleted' to keep data
+    await _client.from('items').update({'status': 'deleted'}).eq('id', itemId);
+  }
 }

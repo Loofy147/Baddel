@@ -1,5 +1,5 @@
 import 'package:baddel/ui/screens/auth/login_screen.dart';
-import 'package:baddel/ui/screens/deck/home_deck_screen.dart';
+import 'package:baddel/ui/screens/main_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -34,7 +34,7 @@ class BaddelApp extends StatelessWidget {
       ),
       // 2. ROUTING LOGIC
       // If logged in -> HomeDeck. If not -> Login.
-      home: isLoggedIn ? const HomeDeckScreen() : const LoginScreen(),
+      home: isLoggedIn ? const MainLayout() : const LoginScreen(),
     );
   }
 }

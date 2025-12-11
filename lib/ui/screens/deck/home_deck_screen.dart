@@ -5,6 +5,7 @@ import 'package:baddel/ui/screens/garage/upload_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
 import 'package:baddel/core/models/item_model.dart';
+import 'package:geolocator/geolocator.dart';
 // import 'package:supabase_flutter/supabase_flutter.dart'; // Uncomment when DB has data
 
 class HomeDeckScreen extends StatefulWidget {
@@ -18,6 +19,43 @@ class _HomeDeckScreenState extends State<HomeDeckScreen> {
   final CardSwiperController controller = CardSwiperController();
   final _supabaseService = SupabaseService();
 
+  // Default Algiers location
+  double _userLat = 36.7525;
+  double _userLng = 3.0588;
+  bool _isLoadingLocation = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _initLocation();
+  }
+
+  Future<void> _initLocation() async {
+    try {
+      // Basic permission check
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
+        final position = await Geolocator.getCurrentPosition();
+        if (mounted) {
+          setState(() {
+            _userLat = position.latitude;
+            _userLng = position.longitude;
+            _isLoadingLocation = false;
+          });
+        }
+      } else {
+         setState(() => _isLoadingLocation = false); // Use default Algiers
+      }
+    } catch (e) {
+      print("GPS Error: $e");
+      setState(() => _isLoadingLocation = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -28,45 +66,48 @@ class _HomeDeckScreenState extends State<HomeDeckScreen> {
 
             // THE REAL DECK FETCHED FROM DB
             Expanded(
-              child: FutureBuilder<List<Item>>(
-                future: _supabaseService.getFeedItems(),
-                builder: (context, snapshot) {
-                  // 1. LOADING STATE
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                     return const Center(child: CircularProgressIndicator(color: Color(0xFF2962FF)));
-                  }
+              child: _isLoadingLocation
+                ? const Center(child: CircularProgressIndicator())
+                : FutureBuilder<List<Item>>(
+                    // CALL THE NEW RPC FUNCTION HERE
+                    future: _supabaseService.getNearbyItems(lat: _userLat, lng: _userLng, radiusInMeters: 50000),
+                    builder: (context, snapshot) {
+                      // 1. LOADING STATE
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                         return const Center(child: CircularProgressIndicator(color: Color(0xFF2962FF)));
+                      }
 
-                  // 2. ERROR OR EMPTY
-                  if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.layers_clear, size: 60, color: Colors.grey),
-                          const SizedBox(height: 10),
-                          const Text("No items yet.\nBe the first to upload!", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
-                          const SizedBox(height: 20),
-                          ElevatedButton(
-                             onPressed: () => setState(() {}), // Refresh
-                             child: const Text("Refresh Deck")
-                          )
-                        ],
-                      ),
-                    );
-                  }
+                      // 2. ERROR OR EMPTY
+                      if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.layers_clear, size: 60, color: Colors.grey),
+                              const SizedBox(height: 10),
+                              const Text("No items yet.\nBe the first to upload!", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+                              const SizedBox(height: 20),
+                              ElevatedButton(
+                                 onPressed: () => setState(() {}), // Refresh
+                                 child: const Text("Refresh Deck")
+                              )
+                            ],
+                          ),
+                        );
+                      }
 
-                  // 3. REAL DATA
-                  final realItems = snapshot.data!;
-                  return CardSwiper(
-                    controller: controller,
-                    cardsCount: realItems.length,
-                    onSwipe: (prev, curr, dir) => _onSwipe(prev, curr, dir, realItems), // Note: we pass list here
-                    cardBuilder: (context, index, x, y) {
-                      return _buildCard(realItems[index]);
+                      // 3. REAL DATA
+                      final realItems = snapshot.data!;
+                      return CardSwiper(
+                        controller: controller,
+                        cardsCount: realItems.length,
+                        onSwipe: (prev, curr, dir) => _onSwipe(prev, curr, dir, realItems), // Note: we pass list here
+                        cardBuilder: (context, index, x, y) {
+                          return _buildCard(realItems[index]);
+                        },
+                      );
                     },
-                  );
-                },
-              ),
+                  ),
             ),
 
             _buildBottomControls(), // Keep bottom controls
@@ -121,7 +162,10 @@ class _HomeDeckScreenState extends State<HomeDeckScreen> {
             Row(
               children: [
                 const Icon(Icons.location_on, color: Colors.grey, size: 16),
-                Text(" ${item.locationName}", style: const TextStyle(color: Colors.grey)),
+                Text(
+                   " ${item.distanceDisplay} away", // Displays "5.2 km away"
+                   style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)
+                ),
                 if (item.acceptsSwaps) ...[
                   const Spacer(),
                   Container(
@@ -142,22 +186,9 @@ class _HomeDeckScreenState extends State<HomeDeckScreen> {
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          IconButton(
-            icon: const Icon(Icons.add_box, color: Colors.white, size: 30),
-            onPressed: () {
-               Navigator.push(context, MaterialPageRoute(builder: (context) => const UploadScreen()));
-            },
-          ),
           Image.network("https://img.icons8.com/color/48/shop.png", height: 30), // LOGO PLACEHOLDER
-          IconButton(
-            icon: const Icon(Icons.chat_bubble_outline, color: Colors.grey, size: 30),
-            onPressed: () {
-               // Navigate to Offers
-               Navigator.push(context, MaterialPageRoute(builder: (context) => const OffersScreen()));
-            },
-          ),
         ],
       ),
     );
