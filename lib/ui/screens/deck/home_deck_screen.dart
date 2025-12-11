@@ -1,3 +1,5 @@
+import 'package:baddel/ui/widgets/action_sheet.dart';
+import 'package:baddel/ui/screens/garage/upload_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
 import 'package:baddel/core/models/item_model.dart';
@@ -52,10 +54,21 @@ class _HomeDeckScreenState extends State<HomeDeckScreen> {
   // --- LOGIC ---
   bool _onSwipe(int previousIndex, int? currentIndex, CardSwiperDirection direction) {
     if (direction == CardSwiperDirection.right) {
-      print("💚 LIKED: ${items[previousIndex].title} -> OPEN ACTION MENU");
-      // TODO: Open Bottom Sheet here
-    } else {
-      print("❌ PASSED: ${items[previousIndex].title}");
+      // 1. Show Visual Feedback
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text("Opening Negotiation..."),
+        duration: Duration(milliseconds: 500)
+      ));
+
+      // 2. Open the Cockpit
+      Future.delayed(const Duration(milliseconds: 300), () {
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true, // Allows full height
+          backgroundColor: Colors.transparent,
+          builder: (context) => ActionSheet(item: items[previousIndex]),
+        );
+      });
     }
     return true;
   }
@@ -112,7 +125,12 @@ class _HomeDeckScreenState extends State<HomeDeckScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Icon(Icons.person, color: Colors.grey, size: 30),
+          IconButton(
+            icon: const Icon(Icons.add_box, color: Colors.white, size: 30),
+            onPressed: () {
+               Navigator.push(context, MaterialPageRoute(builder: (context) => const UploadScreen()));
+            },
+          ),
           Image.network("https://img.icons8.com/color/48/shop.png", height: 30), // LOGO PLACEHOLDER
           const Icon(Icons.chat_bubble_outline, color: Colors.grey, size: 30),
         ],
