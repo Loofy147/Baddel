@@ -79,4 +79,69 @@ class SupabaseService {
       return false;
     }
   }
+
+  // 4. GET MY GARAGE (Items owned by current user)
+  Future<List<Item>> getMyInventory() async {
+    try {
+      final userId = _client.auth.currentUser?.id;
+      if (userId == null) return [];
+
+      final response = await _client
+          .from('items')
+          .select()
+          .eq('owner_id', userId) // ONLY MY ITEMS
+          .eq('status', 'active');
+
+      return (response as List).map((json) => Item.fromJson(json)).toList();
+    } catch (e) {
+      print('🔴 Error fetching inventory: $e');
+      return [];
+    }
+  }
+
+  // 5. SEND AN OFFER (The "Deal" logic)
+  Future<bool> createOffer({
+    required String targetItemId,
+    required String sellerId,
+    required int cashAmount,
+    String? offeredItemId, // Nullable (if Cash Only)
+  }) async {
+    try {
+      final myId = _client.auth.currentUser?.id;
+      if (myId == null) return false;
+
+      // Determine the Offer Type
+      String type = 'cash_only';
+      if (offeredItemId != null && cashAmount > 0) type = 'hybrid';
+      if (offeredItemId != null && cashAmount == 0) type = 'swap_pure';
+
+      await _client.from('offers').insert({
+        'buyer_id': myId,
+        'seller_id': sellerId,
+        'target_item_id': targetItemId,
+        'offered_item_id': offeredItemId,
+        'cash_amount': cashAmount,
+        'type': type,
+        'status': 'pending',
+      });
+
+      return true;
+    } catch (e) {
+      print('🔴 Error creating offer: $e');
+      return false;
+    }
+  }
+
+  // 6. GET MY OFFERS (Simple Version)
+  Stream<List<Map<String, dynamic>>> getOffersStream() {
+    final myId = _client.auth.currentUser?.id;
+    if (myId == null) return const Stream.empty();
+
+    // Fetch offers where I am the Buyer OR the Seller
+    return _client
+        .from('offers')
+        .stream(primaryKey: ['id'])
+        .eq('seller_id', myId) // Currently just showing Incoming Offers
+        .order('created_at');
+  }
 }

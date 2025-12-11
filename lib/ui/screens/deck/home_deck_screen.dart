@@ -1,4 +1,5 @@
 import 'package:baddel/core/services/supabase_service.dart';
+import 'package:baddel/ui/screens/chat/offers_screen.dart';
 import 'package:baddel/ui/widgets/action_sheet.dart';
 import 'package:baddel/ui/screens/garage/upload_screen.dart';
 import 'package:flutter/material.dart';
@@ -150,7 +151,13 @@ class _HomeDeckScreenState extends State<HomeDeckScreen> {
             },
           ),
           Image.network("https://img.icons8.com/color/48/shop.png", height: 30), // LOGO PLACEHOLDER
-          const Icon(Icons.chat_bubble_outline, color: Colors.grey, size: 30),
+          IconButton(
+            icon: const Icon(Icons.chat_bubble_outline, color: Colors.grey, size: 30),
+            onPressed: () {
+               // Navigate to Offers
+               Navigator.push(context, MaterialPageRoute(builder: (context) => const OffersScreen()));
+            },
+          ),
         ],
       ),
     );

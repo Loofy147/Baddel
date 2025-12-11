@@ -1,3 +1,4 @@
+import 'package:baddel/core/services/supabase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:baddel/core/models/item_model.dart';
 
@@ -12,6 +13,7 @@ class ActionSheet extends StatefulWidget {
 class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final TextEditingController _cashController = TextEditingController();
+  String? _selectedSwapItemId;
 
   @override
   void initState() {
@@ -90,6 +92,7 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
   }
 
   Widget _buildCashTab() {
+    final service = SupabaseService();
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -111,10 +114,19 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
           ),
           const Spacer(),
           ElevatedButton(
-            onPressed: () {
-              // TODO: SEND OFFER TO SUPABASE
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("💸 Cash Offer Sent!")));
+            onPressed: () async {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("💸 Sending Cash Offer...")));
+
+              final success = await service.createOffer(
+                targetItemId: widget.item.id,
+                sellerId: widget.item.ownerId,
+                cashAmount: int.tryParse(_cashController.text) ?? 0,
+              );
+
+              if(mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(success ? "💸 Cash Offer Sent!" : "❌ Failed to send offer")));
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF00E676),
@@ -129,8 +141,7 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
   }
 
   Widget _buildSwapTab() {
-    // MOCK INVENTORY for now
-    final myItems = ["Xbox Series S", "Nike Jordan 1", "iPhone X (Broken Screen)"];
+    final service = SupabaseService();
 
     return Padding(
       padding: const EdgeInsets.all(20),
@@ -139,31 +150,97 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
         children: [
           const Text("Select from your Garage:", style: TextStyle(color: Colors.grey)),
           const SizedBox(height: 20),
-          SizedBox(
-            height: 120,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: myItems.length,
-              itemBuilder: (ctx, index) {
-                return Container(
-                  width: 100,
-                  margin: const EdgeInsets.only(right: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[900],
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.grey[800]!),
-                  ),
-                  child: Center(child: Text(myItems[index], textAlign: TextAlign.center, style: const TextStyle(color: Colors.white))),
+
+          // REAL INVENTORY FETCH
+          Expanded( // Changed from SizedBox to Expanded to take available space
+            child: FutureBuilder<List<Item>>(
+              future: service.getMyInventory(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+
+                final myItems = snapshot.data!;
+                if (myItems.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.garage, color: Colors.grey, size: 40),
+                        const Text("Your Garage is Empty", style: TextStyle(color: Colors.grey)),
+                        TextButton(
+                          // In a real app, verify navigation stack
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text("Go Upload First")
+                        )
+                      ],
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: myItems.length,
+                  itemBuilder: (ctx, index) {
+                    final item = myItems[index];
+                    final isSelected = _selectedSwapItemId == item.id;
+
+                    return GestureDetector(
+                      onTap: () => setState(() => _selectedSwapItemId = item.id),
+                      child: Container(
+                        width: 140,
+                        margin: const EdgeInsets.only(right: 15, bottom: 10),
+                        decoration: BoxDecoration(
+                          color: isSelected ? const Color(0xFFBB86FC).withOpacity(0.2) : Colors.grey[900],
+                          borderRadius: BorderRadius.circular(15),
+                          border: Border.all(
+                            color: isSelected ? const Color(0xFFBB86FC) : Colors.transparent,
+                            width: 2
+                          ),
+                          image: DecorationImage(
+                             image: NetworkImage(item.imageUrl),
+                             fit: BoxFit.cover,
+                             colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.4), BlendMode.darken)
+                          )
+                        ),
+                        alignment: Alignment.bottomCenter,
+                        padding: const EdgeInsets.all(8),
+                        child: Text(
+                          item.title,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                        ),
+                      ),
+                    );
+                  },
                 );
               },
             ),
           ),
-          const Spacer(),
+
+          const SizedBox(height: 20),
+
+          // SEND BUTTON (WIRED TO SUPABASE)
           ElevatedButton(
-            onPressed: () {
-              // TODO: SEND SWAP TO SUPABASE
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🔄 Swap Proposal Sent!")));
+            onPressed: () async {
+              if (_selectedSwapItemId == null) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("⚠️ Select an item to swap")));
+                return;
+              }
+
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🔄 Sending Proposal...")));
+
+              final success = await service.createOffer(
+                targetItemId: widget.item.id,
+                sellerId: widget.item.ownerId,
+                cashAmount: 0,
+                offeredItemId: _selectedSwapItemId
+              );
+
+              if(mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(success ? "🔄 Swap Proposal Sent!" : "❌ Failed to send offer")));
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFBB86FC),
