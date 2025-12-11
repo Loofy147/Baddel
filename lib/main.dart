@@ -1,33 +1,40 @@
+import 'package:baddel/ui/screens/auth/login_screen.dart';
+import 'package:baddel/ui/screens/deck/home_deck_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-Future<void> main() async {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Supabase.initialize(
-    // TODO: Replace with your own Supabase URL and anon key
     url: 'YOUR_SUPABASE_URL',
     anonKey: 'YOUR_SUPABASE_ANON_KEY',
   );
 
-  runApp(const MyApp());
+  runApp(const BaddelApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class BaddelApp extends StatelessWidget {
+  const BaddelApp({super.key});
 
   @override
   Widget build(BuildContext context) {
+    // 1. CHECK SESSION ON LAUNCH
+    final session = Supabase.instance.client.auth.currentSession;
+    final bool isLoggedIn = session != null;
+
     return MaterialApp(
       title: 'Baddel',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primarySwatch: Colors.blue,
+        brightness: Brightness.dark,
+        primaryColor: const Color(0xFF2962FF),
+        scaffoldBackgroundColor: const Color(0xFF000000),
+        useMaterial3: true,
       ),
-      home: const Scaffold(
-        body: Center(
-          child: Text('Baddel'),
-        ),
-      ),
+      // 2. ROUTING LOGIC
+      // If logged in -> HomeDeck. If not -> Login.
+      home: isLoggedIn ? const HomeDeckScreen() : const LoginScreen(),
     );
   }
 }

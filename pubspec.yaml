@@ -11,6 +11,9 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.2
   supabase_flutter: ^1.10.25
+  flutter_card_swiper: ^6.0.0
+  image_picker: ^1.0.4
+  geolocator: ^10.1.0
 
 dev_dependencies:
   flutter_test:
