@@ -1,4 +1,5 @@
 import 'package:baddel/models/item_model.dart';
+import 'package:baddel/screens/incoming_offers_screen.dart';
 import 'package:baddel/screens/upload_item_screen.dart';
 import 'package:baddel/services/supabase_service.dart';
 import 'package:baddel/widgets/garage_item_card.dart';
@@ -54,6 +55,17 @@ class _GarageScreenState extends State<GarageScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Garage'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.inbox),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const IncomingOffersScreen()),
+              );
+            },
+          ),
+        ],
       ),
       body: FutureBuilder<List<Item>>(
         future: _itemsFuture,

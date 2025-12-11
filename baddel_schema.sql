@@ -160,6 +160,50 @@ CREATE INDEX actions_offered_item_id_idx ON public.actions(offered_item_id);
 
 COMMENT ON TABLE public.actions IS 'Logs all user swipe actions (Pass, Cash Offer, Swap Offer).';
 
+
+-- ================================================================
+-- CHATS TABLE
+-- Essential for post-match negotiation.
+-- ================================================================
+CREATE TABLE public.chats (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE public.chats IS 'Represents a chat session between two or more users.';
+
+
+-- ================================================================
+-- CHAT_PARTICIPANTS TABLE
+-- Links users to chats.
+-- ================================================================
+CREATE TABLE public.chat_participants (
+  chat_id UUID NOT NULL REFERENCES public.chats(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  PRIMARY KEY (chat_id, user_id)
+);
+
+COMMENT ON TABLE public.chat_participants IS 'A junction table linking users to their chat sessions.';
+
+
+-- ================================================================
+-- MESSAGES TABLE
+-- Stores individual chat messages.
+-- ================================================================
+CREATE TABLE public.messages (
+  id BIGSERIAL PRIMARY KEY,
+  chat_id UUID NOT NULL REFERENCES public.chats(id) ON DELETE CASCADE,
+  sender_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Add an index on chat_id for faster message lookups within a chat.
+CREATE INDEX messages_chat_id_idx ON public.messages(chat_id);
+
+COMMENT ON TABLE public.messages IS 'Stores all messages sent within chats.';
+
+
 -- ----------------------------------------------------------------
 -- 4. DATABASE FUNCTIONS
 -- ----------------------------------------------------------------
@@ -197,6 +241,9 @@ COMMENT ON FUNCTION public.find_items_near_location IS 'Finds active items withi
 -- ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 -- ALTER TABLE public.items ENABLE ROW LEVEL SECURITY;
 -- ALTER TABLE public.actions ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.chats ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.chat_participants ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 
 -- Example Policies (You will need to create more specific policies for your app's logic):
 
@@ -217,6 +264,21 @@ COMMENT ON FUNCTION public.find_items_near_location IS 'Finds active items withi
 --   USING (
 --     auth.uid() IN (SELECT user_id FROM public.items WHERE id = item_id)
 --   );
+
+-- CHATS: Users can only access chats they are a part of.
+-- CREATE POLICY "Allow access to own chats" ON public.chats FOR SELECT
+--   USING (id IN (SELECT chat_id FROM public.chat_participants WHERE user_id = auth.uid()));
+
+-- CHAT_PARTICIPANTS: Users can only see participants of chats they are in.
+-- CREATE POLICY "Allow access to own chat participants" ON public.chat_participants FOR SELECT
+--   USING (chat_id IN (SELECT chat_id FROM public.chat_participants WHERE user_id = auth.uid()));
+
+-- MESSAGES: Users can only see messages in chats they are a part of, and can only send messages as themselves.
+-- CREATE POLICY "Allow read access to messages in own chats" ON public.messages FOR SELECT
+--   USING (chat_id IN (SELECT chat_id FROM public.chat_participants WHERE user_id = auth.uid()));
+
+-- CREATE POLICY "Allow insert access to own messages" ON public.messages FOR INSERT
+--   WITH CHECK (sender_id = auth.uid() AND chat_id IN (SELECT chat_id FROM public.chat_participants WHERE user_id = auth.uid()));
 
 
 -- ----------------------------------------------------------------
