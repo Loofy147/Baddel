@@ -1,4 +1,5 @@
 import 'package:baddel/core/services/supabase_service.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -111,12 +112,27 @@ class _UploadScreenState extends State<UploadScreen> {
                   return;
                 }
 
-                // 2. Show Loading
+                // 2. GET LOCATION
+                Position? position;
+                try {
+                   LocationPermission permission = await Geolocator.checkPermission();
+                   if (permission == LocationPermission.denied) {
+                     permission = await Geolocator.requestPermission();
+                   }
+
+                   if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
+                      position = await Geolocator.getCurrentPosition();
+                   }
+                } catch(e) {
+                  print("GPS Error: $e"); // Fallback will happen in service
+                }
+
+                // 3. Show Loading
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🚀 Uploading to Supabase...")));
 
                 final service = SupabaseService();
 
-                // 3. Upload Image
+                // 4. Upload Image
                 final imageUrl = await service.uploadImage(_imageFile!);
 
                 if (imageUrl == null) {
@@ -124,12 +140,14 @@ class _UploadScreenState extends State<UploadScreen> {
                    return;
                 }
 
-                // 4. Create Database Entry
+                // 5. Create Database Entry with Geolocation
                 final success = await service.postItem(
                   title: _titleController.text,
                   price: int.parse(_priceController.text),
                   imageUrl: imageUrl,
                   acceptsSwaps: _acceptsSwaps,
+                  latitude: position?.latitude,   // NEW
+                  longitude: position?.longitude, // NEW
                 );
 
                 if (success) {

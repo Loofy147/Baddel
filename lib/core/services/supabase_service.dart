@@ -43,23 +43,27 @@ class SupabaseService {
     }
   }
 
-  // 3. POST ITEM (Create Listing)
+  // 3. POST ITEM (Create Listing) with GEOLOCATION
   Future<bool> postItem({
     required String title,
     required int price,
     required String imageUrl,
     required bool acceptsSwaps,
+    double? latitude,
+    double? longitude,
   }) async {
     try {
-      // NOTE: In a real app, 'owner_id' comes from Auth.
-      // For now, we use the current user if logged in, or a random UUID if not.
-      // Ideally, ensure you sign in anonymously at least in main.dart
       final userId = _client.auth.currentUser?.id;
-
       if (userId == null) {
-         print('🔴 User not logged in. Cannot post.');
-         return false;
+        print('🔴 User not logged in. Cannot post.');
+        return false;
       }
+
+      // Default to Algiers (Monument des Martyrs) if GPS failed or permission denied
+      // WKT Format: POINT(LONGITUDE LATITUDE) - Space separated
+      final lat = latitude ?? 36.7525;
+      final lng = longitude ?? 3.0588;
+      final locationString = 'POINT($lng $lat)';
 
       await _client.from('items').insert({
         'owner_id': userId,
@@ -68,9 +72,7 @@ class SupabaseService {
         'image_url': imageUrl,
         'accepts_swaps': acceptsSwaps,
         'is_cash_only': !acceptsSwaps,
-        // We use a dummy location point for now to satisfy the DB constraint
-        // ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)
-        'location': 'POINT(3.0588 36.7525)', // Alger Centre coordinates
+        'location': locationString, // <--- Sent as WKT String, PostGIS parses this automatically
         'status': 'active',
       });
       return true;
