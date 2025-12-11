@@ -2,6 +2,7 @@ import 'package:baddel/core/services/supabase_service.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
@@ -80,6 +81,7 @@ class _UploadScreenState extends State<UploadScreen> {
             TextField(
               controller: _priceController,
               keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               style: const TextStyle(color: Color(0xFF00E676), fontWeight: FontWeight.bold, fontSize: 18),
               decoration: const InputDecoration(hintText: "0", hintStyle: TextStyle(color: Colors.grey)),
             ),
