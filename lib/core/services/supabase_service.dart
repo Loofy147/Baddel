@@ -146,4 +146,61 @@ class SupabaseService {
         .eq('seller_id', myId) // Currently just showing Incoming Offers
         .order('created_at');
   }
+
+  // 8. SEND MESSAGE
+  Future<void> sendMessage(String offerId, String content) async {
+    final myId = _client.auth.currentUser?.id;
+    if (myId == null) return;
+
+    await _client.from('messages').insert({
+      'offer_id': offerId,
+      'sender_id': myId,
+      'content': content,
+    });
+  }
+
+  // 9. LISTEN TO CHAT (Stream)
+  Stream<List<Map<String, dynamic>>> getChatStream(String offerId) {
+    return _client
+        .from('messages')
+        .stream(primaryKey: ['id'])
+        .eq('offer_id', offerId)
+        .order('created_at', ascending: true); // Oldest first
+  }
+
+  // 10. ACCEPT DEAL (Change status to allow chatting)
+  Future<void> acceptOffer(String offerId) async {
+    await _client.from('offers').update({'status': 'accepted'}).eq('id', offerId);
+  }
+
+  // 11. GET USER PROFILE (Stats & Badges)
+  Future<Map<String, dynamic>?> getUserProfile() async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return null;
+
+    try {
+      // Fetch User Row
+      final user = await _client.from('users').select().eq('id', userId).single();
+
+      // Fetch Item Counts (Active vs Sold)
+      final items = await _client.from('items').select('status').eq('owner_id', userId);
+      final activeCount = items.where((i) => i['status'] == 'active').length;
+      final soldCount = items.where((i) => i['status'] == 'sold').length;
+
+      return {
+        ...user,
+        'active_items': activeCount,
+        'sold_items': soldCount,
+      };
+    } catch (e) {
+      print('🔴 Error fetching profile: $e');
+      return null;
+    }
+  }
+
+  // 12. DELETE ITEM (or Mark Sold)
+  Future<void> deleteItem(String itemId) async {
+    // We don't actually delete; we mark as 'deleted' to keep data
+    await _client.from('items').update({'status': 'deleted'}).eq('id', itemId);
+  }
 }
