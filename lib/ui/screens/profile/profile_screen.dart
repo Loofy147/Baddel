@@ -238,13 +238,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             TextButton(
               child: const Text('DELETE', style: TextStyle(color: Colors.red)),
-              onPressed: () async {
+              onPressed: () {
                 Navigator.of(dialogContext).pop(); // Close the dialog
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Deleting "${item.title}"...')),
-                );
-                await _supabaseService.deleteItem(item.id);
-                _loadData(); // Refresh UI
+
+                // --- OPTIMISTIC UI UPDATE ---
+                final itemIndex = _myItems.indexWhere((i) => i.id == item.id);
+                if (itemIndex == -1) return; // Should not happen
+
+                setState(() {
+                  _myItems.removeAt(itemIndex);
+                });
+
+                // Background deletion and error handling
+                _supabaseService.deleteItem(item.id).then((success) {
+                  if (!success && mounted) {
+                    // IF DELETION FAILS, RE-INSERT ITEM AND SHOW ERROR
+                    setState(() {
+                      _myItems.insert(itemIndex, item);
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        backgroundColor: Colors.red,
+                        content: Text('Error deleting "${item.title}". Please try again.'),
+                      ),
+                    );
+                  }
+                });
               },
             ),
           ],
