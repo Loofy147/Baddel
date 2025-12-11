@@ -58,7 +58,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: const Text("My Profile"),
         backgroundColor: Colors.black,
         actions: [
-          IconButton(icon: const Icon(Icons.logout, color: Colors.red), onPressed: _logout)
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.red),
+            onPressed: _logout,
+            tooltip: 'Logout',
+          )
         ],
       ),
       body: SingleChildScrollView(
@@ -196,10 +200,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Positioned(
           top: 5, right: 5,
           child: GestureDetector(
-            onTap: () async {
-              await _supabaseService.deleteItem(item.id);
-              _loadData(); // Refresh UI
-            },
+            onTap: () => _showDeleteConfirmation(item),
             child: Container(
               padding: const EdgeInsets.all(6),
               decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
@@ -219,6 +220,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         )
       ],
+    );
+  }
+
+  void _showDeleteConfirmation(Item item) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          backgroundColor: Colors.grey[900],
+          title: const Text('Delete Item?', style: TextStyle(color: Colors.white)),
+          content: Text('Are you sure you want to delete "${item.title}"? This cannot be undone.', style: const TextStyle(color: Colors.grey)),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel', style: TextStyle(color: Colors.white)),
+              onPressed: () => Navigator.of(dialogContext).pop(), // Close the dialog
+            ),
+            TextButton(
+              child: const Text('DELETE', style: TextStyle(color: Colors.red)),
+              onPressed: () async {
+                Navigator.of(dialogContext).pop(); // Close the dialog
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Deleting "${item.title}"...')),
+                );
+                await _supabaseService.deleteItem(item.id);
+                _loadData(); // Refresh UI
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 }
