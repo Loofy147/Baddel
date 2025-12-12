@@ -1,3 +1,4 @@
+import 'package:baddel/core/validators/input_validator.dart';
 import 'package:flutter/material.dart';
 import 'package:baddel/core/services/supabase_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'; // To get current user ID
@@ -13,14 +14,16 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
+  final _formKey = GlobalKey<FormState>();
   final _controller = TextEditingController();
   final _service = SupabaseService();
   final _myId = Supabase.instance.client.auth.currentUser?.id;
 
   void _sendMessage() {
-    if (_controller.text.trim().isEmpty) return;
-    _service.sendMessage(widget.offerId, _controller.text.trim());
-    _controller.clear();
+    if (_formKey.currentState!.validate()) {
+      _service.sendMessage(widget.offerId, _controller.text.trim());
+      _controller.clear();
+    }
   }
 
   @override
@@ -34,7 +37,7 @@ class _ChatScreenState extends State<ChatScreen> {
           IconButton(
             icon: const Icon(Icons.location_on, color: Color(0xFF00E676)),
             onPressed: () {
-               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("📍 Share Location Feature coming soon!")));
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("📍 Share Location Feature coming soon!")));
             },
           )
         ],
@@ -78,24 +81,28 @@ class _ChatScreenState extends State<ChatScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             color: Colors.grey[900],
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: const InputDecoration(
-                      hintText: "Type a message...",
-                      hintStyle: TextStyle(color: Colors.grey),
-                      border: InputBorder.none,
+            child: Form(
+              key: _formKey,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _controller,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: const InputDecoration(
+                        hintText: "Type a message...",
+                        hintStyle: TextStyle(color: Colors.grey),
+                        border: InputBorder.none,
+                      ),
+                      validator: InputValidator.validateMessage,
                     ),
                   ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.send, color: Color(0xFF2962FF)),
-                  onPressed: _sendMessage,
-                )
-              ],
+                  IconButton(
+                    icon: const Icon(Icons.send, color: Color(0xFF2962FF)),
+                    onPressed: _sendMessage,
+                  )
+                ],
+              ),
             ),
           )
         ],

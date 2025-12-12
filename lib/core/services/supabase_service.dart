@@ -1,9 +1,12 @@
 import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:baddel/core/models/item_model.dart';
+import 'auth_service.dart';
+import 'error_handler.dart';
 
 class SupabaseService {
   final _client = Supabase.instance.client;
+  final _authService = AuthService();
 
   // 1. GET THE FEED (Fetch Items)
   Future<List<Item>> getFeedItems() async {
@@ -16,8 +19,24 @@ class SupabaseService {
       final data = response as List<dynamic>;
       return data.map((json) => Item.fromJson(json)).toList();
     } catch (e) {
-      print('🔴 Error fetching feed: $e');
-      return [];
+      throw AppException.fromSupabaseError(e);
+    }
+  }
+
+  Future<List<Item>> getNearbyItems({required double lat, required double lng, required int radiusInMeters}) async {
+    if (radiusInMeters < 100 || radiusInMeters > 100000) {
+      throw ArgumentError('Radius must be between 100m and 100km');
+    }
+    try {
+      final response = await _client.rpc('get_items_nearby', params: {
+        'lat': lat,
+        'lng': lng,
+        'radius_meters': radiusInMeters,
+      });
+      final data = response as List<dynamic>;
+      return data.map((json) => Item.fromJson(json)).toList();
+    } catch (e) {
+      throw AppException.fromSupabaseError(e);
     }
   }
 
@@ -38,8 +57,7 @@ class SupabaseService {
 
       return publicUrl;
     } catch (e) {
-      print('🔴 Error uploading image: $e');
-      return null;
+      throw AppException.fromSupabaseError(e);
     }
   }
 
@@ -53,16 +71,17 @@ class SupabaseService {
     double? longitude,
   }) async {
     try {
-      final userId = _client.auth.currentUser?.id;
-      if (userId == null) {
+      final user = await _authService.currentUser;
+      if (user == null) {
         print('🔴 User not logged in. Cannot post.');
         return false;
       }
+      final userId = user.id;
 
       // Default to Algiers (Monument des Martyrs) if GPS failed or permission denied
       // WKT Format: POINT(LONGITUDE LATITUDE) - Space separated
-      final lat = latitude ?? 36.7525;
-      final lng = longitude ?? 3.0588;
+      final lat = latitude != null ? (latitude * 1000).round() / 1000 : 36.7525;
+      final lng = longitude != null ? (longitude * 1000).round() / 1000 : 3.0588;
       final locationString = 'POINT($lng $lat)';
 
       await _client.from('items').insert({
@@ -77,16 +96,16 @@ class SupabaseService {
       });
       return true;
     } catch (e) {
-      print('🔴 Error posting item: $e');
-      return false;
+      throw AppException.fromSupabaseError(e);
     }
   }
 
   // 4. GET MY GARAGE (Items owned by current user)
   Future<List<Item>> getMyInventory() async {
     try {
-      final userId = _client.auth.currentUser?.id;
-      if (userId == null) return [];
+      final user = await _authService.currentUser;
+      if (user == null) return [];
+      final userId = user.id;
 
       final response = await _client
           .from('items')
@@ -109,8 +128,9 @@ class SupabaseService {
     String? offeredItemId, // Nullable (if Cash Only)
   }) async {
     try {
-      final myId = _client.auth.currentUser?.id;
-      if (myId == null) return false;
+      final user = await _authService.currentUser;
+      if (user == null) return false;
+      final myId = user.id;
 
       // Determine the Offer Type
       String type = 'cash_only';
@@ -135,12 +155,16 @@ class SupabaseService {
   }
 
   // 6. GET MY OFFERS (Simple Version)
-  Stream<List<Map<String, dynamic>>> getOffersStream() {
-    final myId = _client.auth.currentUser?.id;
-    if (myId == null) return const Stream.empty();
+  Stream<List<Map<String, dynamic>>> getOffersStream() async* {
+    final user = await _authService.currentUser;
+    if (user == null) {
+      yield [];
+      return;
+    }
+    final myId = user.id;
 
     // Fetch offers where I am the Buyer OR the Seller
-    return _client
+    yield* _client
         .from('offers')
         .stream(primaryKey: ['id'])
         .eq('seller_id', myId) // Currently just showing Incoming Offers
@@ -149,8 +173,9 @@ class SupabaseService {
 
   // 8. SEND MESSAGE
   Future<void> sendMessage(String offerId, String content) async {
-    final myId = _client.auth.currentUser?.id;
-    if (myId == null) return;
+    final user = await _authService.currentUser;
+    if (user == null) return;
+    final myId = user.id;
 
     await _client.from('messages').insert({
       'offer_id': offerId,
@@ -170,17 +195,26 @@ class SupabaseService {
 
   // 10. ACCEPT DEAL (Change status to allow chatting)
   Future<void> acceptOffer(String offerId) async {
+    final user = await _authService.currentUser;
+    if (user == null) throw AppException('Not authenticated', code: 'AUTH_REQUIRED');
+
+    final offer = await _client.from('offers').select('seller_id').eq('id', offerId).single();
+    if (offer['seller_id'] != user.id) {
+      throw AppException('Unauthorized to accept this offer', code: 'UNAUTHORIZED');
+    }
+
     await _client.from('offers').update({'status': 'accepted'}).eq('id', offerId);
   }
 
   // 11. GET USER PROFILE (Stats & Badges)
   Future<Map<String, dynamic>?> getUserProfile() async {
-    final userId = _client.auth.currentUser?.id;
-    if (userId == null) return null;
+    final user = await _authService.currentUser;
+    if (user == null) return null;
+    final userId = user.id;
 
     try {
       // Fetch User Row
-      final user = await _client.from('users').select().eq('id', userId).single();
+      final userProfile = await _client.from('users').select().eq('id', userId).single();
 
       // Fetch Item Counts (Active vs Sold)
       final items = await _client.from('items').select('status').eq('owner_id', userId);
@@ -200,7 +234,19 @@ class SupabaseService {
 
   // 12. DELETE ITEM (or Mark Sold)
   Future<void> deleteItem(String itemId) async {
-    // We don't actually delete; we mark as 'deleted' to keep data
-    await _client.from('items').update({'status': 'deleted'}).eq('id', itemId);
+    final user = await _authService.currentUser;
+    if (user == null) throw AppException('Not authenticated', code: 'AUTH_REQUIRED');
+    final userId = user.id;
+
+    final result = await _client
+      .from('items')
+      .update({'status': 'deleted'})
+      .eq('id', itemId)
+      .eq('owner_id', userId)
+      .select();
+
+    if (result.isEmpty) {
+      throw AppException('Unauthorized or item not found', code: 'UNAUTHORIZED');
+    }
   }
 }
