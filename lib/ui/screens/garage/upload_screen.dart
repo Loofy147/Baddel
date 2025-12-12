@@ -148,7 +148,7 @@ class _UploadScreenState extends State<UploadScreen> {
                             }
 
                             // 5. Create Database Entry with Geolocation
-                            final success = await service.postItem(
+                            await service.postItem(
                               title: _titleController.text,
                               price: int.parse(_priceController.text),
                               imageUrl: imageUrl,
@@ -157,11 +157,15 @@ class _UploadScreenState extends State<UploadScreen> {
                               longitude: position?.longitude, // NEW
                             );
 
-                            if (success) {
+                            if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Item Live in the Deck!")));
                               Navigator.pop(context); // Close screen
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Database Error. Check Console.")));
+                            }
+                          } catch (e) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Error posting item: $e'), backgroundColor: Colors.red),
+                              );
                             }
                           } finally {
                             if (mounted) {

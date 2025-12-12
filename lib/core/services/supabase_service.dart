@@ -115,13 +115,12 @@ class SupabaseService {
 
       return (response as List).map((json) => Item.fromJson(json)).toList();
     } catch (e) {
-      print('🔴 Error fetching inventory: $e');
-      return [];
+      throw AppException.fromSupabaseError(e);
     }
   }
 
   // 5. SEND AN OFFER (The "Deal" logic)
-  Future<bool> createOffer({
+  Future<void> createOffer({
     required String targetItemId,
     required String sellerId,
     required int cashAmount,
@@ -129,7 +128,7 @@ class SupabaseService {
   }) async {
     try {
       final user = await _authService.currentUser;
-      if (user == null) return false;
+      if (user == null) throw AppException('Not authenticated', code: 'AUTH_REQUIRED');
       final myId = user.id;
 
       // Determine the Offer Type
@@ -146,11 +145,8 @@ class SupabaseService {
         'type': type,
         'status': 'pending',
       });
-
-      return true;
     } catch (e) {
-      print('🔴 Error creating offer: $e');
-      return false;
+      throw AppException.fromSupabaseError(e);
     }
   }
 
@@ -163,7 +159,7 @@ class SupabaseService {
     }
     final myId = user.id;
 
-    // Fetch offers where I am the Buyer OR the Seller
+    // Fetch offers where I am the Seller
     yield* _client
         .from('offers')
         .stream(primaryKey: ['id'])
@@ -227,8 +223,7 @@ class SupabaseService {
         'sold_items': soldCount,
       };
     } catch (e) {
-      print('🔴 Error fetching profile: $e');
-      return null;
+      throw AppException.fromSupabaseError(e);
     }
   }
 
@@ -248,5 +243,18 @@ class SupabaseService {
     if (result.isEmpty) {
       throw AppException('Unauthorized or item not found', code: 'UNAUTHORIZED');
     }
+  }
+
+  // 13. REPORT ITEM
+  Future<void> reportItem(String itemId, String reason) async {
+    final user = await _authService.currentUser;
+    if (user == null) throw AppException('Not authenticated', code: 'AUTH_REQUIRED');
+
+    await _client.from('reports').insert({
+      'reporter_id': user.id,
+      'item_id': itemId,
+      'reason': reason,
+      'status': 'pending'
+    });
   }
 }
