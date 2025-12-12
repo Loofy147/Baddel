@@ -85,7 +85,7 @@ class _HomeDeckScreenState extends State<HomeDeckScreen> {
                             children: [
                               const Icon(Icons.layers_clear, size: 60, color: Colors.grey),
                               const SizedBox(height: 10),
-                              const Text("No items yet.\nBe the first to upload!", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+                              const Text("No items yet.\nBe the first to upload!", textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
                               const SizedBox(height: 20),
                               ElevatedButton(
                                  onPressed: () => setState(() {}), // Refresh
@@ -142,12 +142,12 @@ class _HomeDeckScreenState extends State<HomeDeckScreen> {
           image: NetworkImage(item.imageUrl),
           fit: BoxFit.cover,
         ),
-        boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 20, offset: Offset(0, 10))],
+        boxShadow: [const BoxShadow(color: Colors.black54, blurRadius: 20, offset: Offset(0, 10))],
       ),
       alignment: Alignment.bottomLeft,
       child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(colors: [Colors.black, Colors.transparent], begin: Alignment.bottomCenter, end: Alignment.topCenter),
+        decoration: const BoxDecoration(
+          gradient: const LinearGradient(colors: const [Colors.black, Colors.transparent], begin: Alignment.bottomCenter, end: Alignment.topCenter),
           borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
         ),
         padding: const EdgeInsets.all(20),
@@ -171,7 +171,7 @@ class _HomeDeckScreenState extends State<HomeDeckScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(color: const Color(0xFFBB86FC), borderRadius: BorderRadius.circular(10)),
-                    child: const Text("🔄 SWAP OK", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    child: const Text("🔄 SWAP OK", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                   )
                 ]
               ],
