@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:baddel/core/models/item_model.dart';
 import 'auth_service.dart';
 import 'error_handler.dart';
+import 'logger.dart';
 
 class SupabaseService {
   final _client = Supabase.instance.client;
@@ -74,7 +75,7 @@ class SupabaseService {
     try {
       final user = await _authService.currentUser;
       if (user == null) {
-        print('🔴 User not logged in. Cannot post.');
+        Logger.error('User not logged in. Cannot post.');
         return false;
       }
       final userId = user.id;
@@ -227,7 +228,7 @@ class SupabaseService {
         'sold_items': soldCount,
       };
     } catch (e) {
-      print('🔴 Error fetching profile: $e');
+      Logger.error('Error fetching profile', e);
       return null;
     }
   }
@@ -248,5 +249,18 @@ class SupabaseService {
     if (result.isEmpty) {
       throw AppException('Unauthorized or item not found', code: 'UNAUTHORIZED');
     }
+  }
+
+  Future<bool> isAdmin() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return false;
+
+    final profile = await _client
+        .from('users')
+        .select('is_admin')
+        .eq('id', user.id)
+        .single();
+
+    return profile['is_admin'] == true;
   }
 }

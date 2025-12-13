@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:baddel/core/services/auth_service.dart';
 import 'package:baddel/core/services/supabase_service.dart';
 import 'package:baddel/core/models/item_model.dart';
+import 'package:baddel/ui/screens/admin/analytics_dashboard.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -18,6 +19,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _profileData;
   List<Item> _myItems = [];
   bool _isLoading = true;
+  bool _isAdmin = false;
 
   @override
   void initState() {
@@ -28,12 +30,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _loadData() async {
     final profile = await _supabaseService.getUserProfile();
     final items = await _supabaseService.getMyInventory();
+    final isAdmin = await _supabaseService.isAdmin();
 
     if (mounted) {
       setState(() {
         _profileData = profile;
         _myItems = items;
         _isLoading = false;
+        _isAdmin = isAdmin;
       });
     }
   }
@@ -58,6 +62,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: const Text("My Profile"),
         backgroundColor: Colors.black,
         actions: [
+          if (_isAdmin)
+            IconButton(
+              icon: const Icon(Icons.analytics, color: Colors.amber),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AnalyticsDashboard()),
+                );
+              },
+            ),
           IconButton(icon: const Icon(Icons.logout, color: Colors.red), onPressed: _logout)
         ],
       ),
