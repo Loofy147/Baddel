@@ -67,6 +67,7 @@ class SupabaseService {
     required int price,
     required String imageUrl,
     required bool acceptsSwaps,
+    String? category,
     double? latitude,
     double? longitude,
   }) async {
@@ -93,6 +94,7 @@ class SupabaseService {
         'is_cash_only': !acceptsSwaps,
         'location': locationString, // <--- Sent as WKT String, PostGIS parses this automatically
         'status': 'active',
+        'category': category,
       });
       return true;
     } catch (e) {
@@ -115,8 +117,7 @@ class SupabaseService {
 
       return (response as List).map((json) => Item.fromJson(json)).toList();
     } catch (e) {
-      print('🔴 Error fetching inventory: $e');
-      return [];
+      throw AppException.fromSupabaseError(e);
     }
   }
 
@@ -149,8 +150,7 @@ class SupabaseService {
 
       return true;
     } catch (e) {
-      print('🔴 Error creating offer: $e');
-      return false;
+      throw AppException.fromSupabaseError(e);
     }
   }
 

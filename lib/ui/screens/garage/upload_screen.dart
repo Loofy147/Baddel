@@ -18,6 +18,17 @@ class _UploadScreenState extends State<UploadScreen> {
   File? _imageFile;
   final _titleController = TextEditingController();
   final _priceController = TextEditingController();
+  String? _selectedCategory;
+  final List<String> _categories = [
+    'Electronics',
+    'Vehicles',
+    'Furniture',
+    'Clothing & Apparel',
+    'Home & Garden',
+    'Collectibles & Art',
+    'Sporting Goods',
+    'Other',
+  ];
   bool _acceptsSwaps = true;
   bool _isUploading = false;
 
@@ -91,6 +102,33 @@ class _UploadScreenState extends State<UploadScreen> {
               ),
               const SizedBox(height: 20),
 
+              // CATEGORY DROPDOWN
+              const Text("Category", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              DropdownButtonFormField<String>(
+                value: _selectedCategory,
+                items: _categories.map((String category) {
+                  return DropdownMenuItem<String>(
+                    value: category,
+                    child: Text(category, style: const TextStyle(color: Colors.white)),
+                  );
+                }).toList(),
+                onChanged: (newValue) {
+                  setState(() {
+                    _selectedCategory = newValue;
+                  });
+                },
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: Colors.grey[900],
+                  hintText: 'Select a category',
+                  hintStyle: const TextStyle(color: Colors.grey),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                validator: (value) => value == null ? 'Please select a category' : null,
+                dropdownColor: Colors.grey[900],
+              ),
+              const SizedBox(height: 20),
+
               // 3. SWAP TOGGLE
               Container(
                 padding: const EdgeInsets.all(15),
@@ -153,6 +191,7 @@ class _UploadScreenState extends State<UploadScreen> {
                               price: int.parse(_priceController.text),
                               imageUrl: imageUrl,
                               acceptsSwaps: _acceptsSwaps,
+                              category: _selectedCategory,
                               latitude: position?.latitude, // NEW
                               longitude: position?.longitude, // NEW
                             );
