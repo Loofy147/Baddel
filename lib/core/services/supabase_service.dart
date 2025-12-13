@@ -5,8 +5,10 @@ import 'auth_service.dart';
 import 'error_handler.dart';
 
 class SupabaseService {
-  final _client = Supabase.instance.client;
-  final _authService = AuthService();
+  final SupabaseClient _client;
+  final AuthService _authService;
+
+  SupabaseService(this._client, this._authService);
 
   // 1. GET THE FEED (Fetch Items)
   Future<List<Item>> getFeedItems() async {

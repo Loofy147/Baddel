@@ -19,7 +19,7 @@ void main() {
   setUp(() {
     mockAuthService = MockAuthService();
     mockSupabaseClient = MockSupabaseClient();
-    supabaseService = SupabaseService();
+    supabaseService = SupabaseService(mockSupabaseClient, mockAuthService);
   });
 
   group('Security Tests', () {
