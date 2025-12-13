@@ -1,3 +1,4 @@
+import 'package:baddel/core/services/logger.dart';
 import 'package:baddel/core/services/supabase_service.dart';
 import 'package:baddel/core/validators/input_validator.dart';
 import 'package:geolocator/geolocator.dart';
@@ -169,7 +170,7 @@ class _UploadScreenState extends State<UploadScreen> {
                                 position = await Geolocator.getCurrentPosition();
                               }
                             } catch (e) {
-                              print("GPS Error: $e"); // Fallback will happen in service
+                              Logger.error("GPS Error", e); // Fallback will happen in service
                             }
 
                             // 3. Show Loading
