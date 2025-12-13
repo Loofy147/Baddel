@@ -251,4 +251,25 @@ class SupabaseService {
       throw AppException('Unauthorized or item not found', code: 'UNAUTHORIZED');
     }
   }
+
+  // 13. REPORT ITEM
+  Future<void> reportItem({required String itemId, required String reason, String? notes}) async {
+    final user = await _authService.currentUser;
+    if (user == null) throw AppException('Not authenticated', code: 'AUTH_REQUIRED');
+
+    try {
+      await _client.from('reports').insert({
+        'reporter_id': user.id,
+        'reported_item_id': itemId,
+        'reason': reason,
+        'notes': notes,
+      });
+    } catch (e) {
+      // Catch potential unique constraint violation if user reports the same item twice
+      if (e.toString().contains('duplicate key value violates unique constraint')) {
+        throw AppException('You have already reported this item.', code: 'DUPLICATE_REPORT');
+      }
+      throw AppException.fromSupabaseError(e);
+    }
+  }
 }
