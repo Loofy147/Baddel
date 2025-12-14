@@ -1,3 +1,4 @@
+import 'package:baddel/core/services/error_handler.dart';
 import 'package:baddel/ui/screens/chat/chat_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:baddel/core/services/supabase_service.dart';
@@ -32,7 +33,6 @@ class OffersScreen extends StatelessWidget {
               return GestureDetector(
                 onTap: () async {
                   if (offer['status'] == 'pending') {
-                    // Show Accept Dialog
                     showDialog(
                       context: context,
                       builder: (ctx) => AlertDialog(
@@ -42,9 +42,14 @@ class OffersScreen extends StatelessWidget {
                           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
                           TextButton(
                             onPressed: () async {
-                               Navigator.pop(ctx);
-                               await service.acceptOffer(offer['id']);
-                               // Refresh UI via stream automatically
+                              try {
+                                Navigator.pop(ctx);
+                                await service.acceptOffer(offer['id']);
+                              } on AppException catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text("❌ ${e.message}")),
+                                );
+                              }
                             },
                             child: const Text("ACCEPT", style: TextStyle(color: Colors.green))
                           )
@@ -52,7 +57,6 @@ class OffersScreen extends StatelessWidget {
                       )
                     );
                   } else if (offer['status'] == 'accepted') {
-                    // Open Chat
                     Navigator.push(context, MaterialPageRoute(
                       builder: (_) => ChatScreen(offerId: offer['id'], otherUserName: "Trader")
                     ));

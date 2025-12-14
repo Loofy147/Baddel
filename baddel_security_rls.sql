@@ -18,15 +18,14 @@ CREATE POLICY "users_select_own"
 ON users FOR SELECT
 USING (auth.uid() = id);
 
+-- SECURITY NOTE: Multiple SELECT policies are combined with OR.
+-- A permissive policy like `USING (true)` would expose all user data to any authenticated user.
+-- All SELECT policies on this table must be restrictive.
+
 -- Users can update their own profile
 CREATE POLICY "users_update_own"
 ON users FOR UPDATE
 USING (auth.uid() = id);
-
--- Anyone can read public user data (for displaying in offers)
-CREATE POLICY "users_select_public"
-ON users FOR SELECT
-USING (true);
 
 -- ========================================
 -- 3. ITEMS TABLE POLICIES
