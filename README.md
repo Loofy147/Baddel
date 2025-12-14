@@ -1,3 +1,12 @@
+# Baddel
+
+## Performance Considerations
+
+To ensure a smooth and responsive user experience, this application follows key Flutter performance best practices.
+
+### Const Constructors
+
+Stateless widgets and their properties (such as `TextStyle`, `EdgeInsets`, and `BoxDecoration`) are declared as `const` wherever possible. This allows Flutter's rendering engine to cache these widget instances and avoid unnecessary rebuilds, leading to significant improvements in UI performance. This practice is applied consistently throughout the app, particularly in UI-heavy screens like the `HomeDeckScreen`.
 # Baddel - The Smart Marketplace
 
 Baddel is a next-generation mobile marketplace for the Algerian market, combining the intuitive swipe-based discovery of dating apps with a flexible trading and bartering system. It's built with Flutter for a smooth cross-platform experience and powered by a sophisticated Supabase backend.
