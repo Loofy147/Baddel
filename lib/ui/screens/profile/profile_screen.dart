@@ -1,7 +1,10 @@
+import 'package:baddel/core/services/error_handler.dart';
 import 'package:flutter/material.dart';
 import 'package:baddel/core/services/auth_service.dart';
 import 'package:baddel/core/services/supabase_service.dart';
 import 'package:baddel/core/models/item_model.dart';
+import 'package:baddel/ui/screens/admin/analytics_dashboard.dart';
+import 'package:baddel/ui/screens/garage/upload_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -18,6 +21,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _profileData;
   List<Item> _myItems = [];
   bool _isLoading = true;
+  bool _isAdmin = false;
 
   @override
   void initState() {
@@ -26,22 +30,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _loadData() async {
-    final profile = await _supabaseService.getUserProfile();
-    final items = await _supabaseService.getMyInventory();
+    try {
+      final profile = await _supabaseService.getUserProfile();
+      final items = await _supabaseService.getMyInventory();
+      final isAdmin = await _supabaseService.isAdmin();
 
-    if (mounted) {
-      setState(() {
-        _profileData = profile;
-        _myItems = items;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _profileData = profile;
+          _myItems = items;
+          _isAdmin = isAdmin;
+        });
+      }
+    } on AppException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("❌ ${e.message}")),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   void _logout() {
     _authService.signOut();
-    // In main.dart, Auth state change will handle navigation,
-    // but to be safe we push replacement to login:
     Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
   }
 
@@ -58,18 +73,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: const Text("My Profile"),
         backgroundColor: Colors.black,
         actions: [
-          IconButton(icon: const Icon(Icons.logout, color: Colors.red), onPressed: _logout)
+          if (_isAdmin)
+            IconButton(
+              icon: const Icon(Icons.analytics, color: Colors.amber),
+              tooltip: 'View Analytics',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AnalyticsDashboard()),
+                );
+              },
+            ),
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.red),
+            tooltip: 'Logout',
+            onPressed: _logout,
+          )
         ],
       ),
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // 1. THE HERO CARD (Gamification)
             _buildHeroStats(score, phone),
-
             const SizedBox(height: 20),
-
-            // 2. MY GARAGE HEADER
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
@@ -80,12 +106,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
             ),
-
             const SizedBox(height: 10),
-
-            // 3. INVENTORY GRID
             _myItems.isEmpty
-              ? const Padding(padding: EdgeInsets.all(50), child: Text("Garage Empty", style: TextStyle(color: Colors.grey)))
+              ? Container(
+                  padding: const EdgeInsets.symmetric(vertical: 50),
+                  alignment: Alignment.center,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.car_repair_outlined, color: Colors.grey, size: 60),
+                      const SizedBox(height: 10),
+                      const Text("Your garage is empty.", style: TextStyle(color: Colors.grey, fontSize: 16)),
+                      const SizedBox(height: 20),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2962FF),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const UploadScreen()),
+                          );
+                        },
+                        child: const Text('Add Your First Item'),
+                      ),
+                    ],
+                  ),
+                )
               : GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
@@ -105,10 +156,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // --- WIDGETS ---
-
   Widget _buildHeroStats(int score, String phone) {
-    // Calculate Level based on Score
     String level = "Novice";
     Color color = Colors.grey;
     if (score > 60) { level = "Merchant"; color = Colors.blue; }
@@ -153,13 +201,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           ),
           const SizedBox(height: 20),
-          // STATS ROW
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _statItem("Active", "${_profileData?['active_items'] ?? 0}"),
               _statItem("Sold", "${_profileData?['sold_items'] ?? 0}"),
-              _statItem("Deals", "0"), // Placeholder for future deals count
+              _statItem("Deals", "0"),
             ],
           )
         ],
@@ -180,25 +227,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Background Image
         ClipRRect(
           borderRadius: BorderRadius.circular(15),
           child: Image.network(item.imageUrl, fit: BoxFit.cover),
         ),
-        // Overlay
         Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(15),
             gradient: const LinearGradient(colors: [Colors.black87, Colors.transparent], begin: Alignment.bottomCenter, end: Alignment.center),
           ),
         ),
-        // Delete Button
         Positioned(
           top: 5, right: 5,
           child: GestureDetector(
             onTap: () async {
-              await _supabaseService.deleteItem(item.id);
-              _loadData(); // Refresh UI
+              try {
+                await _supabaseService.deleteItem(item.id);
+                _loadData();
+              } on AppException catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("❌ ${e.message}")),
+                  );
+                }
+              }
             },
             child: Container(
               padding: const EdgeInsets.all(6),
@@ -207,18 +259,85 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
         ),
-        // Text
         Positioned(
-          bottom: 10, left: 10,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          bottom: 10, left: 10, right: 10,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(item.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-              Text("${item.price} DA", style: const TextStyle(color: Color(0xFF00E676), fontSize: 12)),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(item.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text("${item.price} DA", style: const TextStyle(color: Color(0xFF00E676), fontSize: 12)),
+                ],
+              ),
+              IconButton(
+                icon: const Icon(Icons.bolt, color: Colors.amber),
+                onPressed: () => _showBoostDialog(item),
+              ),
             ],
           ),
         )
       ],
+    );
+  }
+
+  void _showBoostDialog(Item item) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: Row(
+          children: [
+            const Icon(Icons.bolt, color: Colors.amber),
+            const SizedBox(width: 10),
+            const Text('Boost Listing', style: TextStyle(color: Colors.white)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Get your item seen by more people!', style: TextStyle(color: Colors.grey[400])),
+            const SizedBox(height: 20),
+            const Text('Choose a boost duration:', style: TextStyle(color: Colors.white)),
+            const SizedBox(height: 10),
+            // Placeholder options
+            ListTile(
+              leading: const Icon(Icons.local_fire_department, color: Colors.amber),
+              title: const Text('24 Hours', style: TextStyle(color: Colors.white)),
+              subtitle: Text('100 DZD', style: TextStyle(color: Colors.grey[400])),
+              onTap: () {},
+            ),
+            ListTile(
+              leading: const Icon(Icons.local_fire_department, color: Colors.amber),
+              title: const Text('3 Days', style: TextStyle(color: Colors.white)),
+              subtitle: Text('250 DZD', style: TextStyle(color: Colors.grey[400])),
+              onTap: () {},
+            ),
+            ListTile(
+              leading: const Icon(Icons.local_fire_department, color: Colors.amber),
+              title: const Text('7 Days', style: TextStyle(color: Colors.white)),
+              subtitle: Text('500 DZD', style: TextStyle(color: Colors.grey[400])),
+              onTap: () {},
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          Tooltip(
+            message: 'Coming Soon: Payment integration is under development',
+            child: ElevatedButton(
+              onPressed: null, // Disabled
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.grey),
+              child: const Text('Proceed to Payment'),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
