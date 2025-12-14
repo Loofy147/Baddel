@@ -105,7 +105,8 @@ class _HomeDeckScreenState extends State<HomeDeckScreen> {
                                 onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const UploadScreen())),
                                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2962FF)),
                                 child: const Text("Be the First to Upload!", style: TextStyle(color: Colors.white)),
-                              )
+                              ),
+                              TextButton(
                                 onPressed: _loadRecommendations, // Refresh
                                 child: const Text("Refresh Deck"),
                               ),
@@ -192,12 +193,9 @@ class _HomeDeckScreenState extends State<HomeDeckScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          _actionBtn(Icons.close, Colors.red, "Pass", () => controller.swipe(CardSwiperDirection.left)),
+          _actionBtn(Icons.close, Colors.red, "Pass", () => _swiperController.swipeLeft()),
           _actionBtn(Icons.bolt, Colors.amber, "Super Like (Coming Soon)", null), // Super Like / Fire Sale
-          _actionBtn(Icons.favorite, Colors.green, "Make a Deal", () => controller.swipe(CardSwiperDirection.right)),
-          _actionBtn(Icons.close, Colors.red, () => _swiperController.swipeLeft()),
-          _actionBtn(Icons.bolt, Colors.amber, () {}), // Super Like / Fire Sale
-          _actionBtn(Icons.favorite, Colors.green, () => _swiperController.swipeRight()),
+          _actionBtn(Icons.favorite, Colors.green, "Make a Deal", () => _swiperController.swipeRight()),
         ],
       ),
     );
