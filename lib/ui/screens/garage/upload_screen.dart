@@ -300,7 +300,6 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
 
               const SizedBox(height: 40),
 
-              // 4. SUBMIT BUTTON
               ElevatedButton(
                 onPressed: _isUploading ? null : _submitListing,
                 style: ElevatedButton.styleFrom(

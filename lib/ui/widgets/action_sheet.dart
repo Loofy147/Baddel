@@ -1,8 +1,8 @@
-import 'package.baddel/core/providers.dart';
+import 'package:baddel/core/providers.dart';
 import 'package:baddel/core/services/auth_service.dart';
 import 'package:baddel/core/services/error_handler.dart';
 import 'package:baddel/core/services/supabase_service.dart';
-import 'package.baddel/ui/screens/garage/upload_screen.dart';
+import 'package:baddel/ui/screens/garage/upload_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:baddel/core/providers.dart';
 import 'package:baddel/core/models/item_model.dart';
