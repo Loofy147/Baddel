@@ -1,3 +1,4 @@
+import 'package:baddel/core/services/error_handler.dart';
 import 'package:flutter/material.dart';
 import 'package:baddel/core/services/auth_service.dart';
 import 'package:baddel/core/services/supabase_service.dart';
@@ -28,24 +29,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _loadData() async {
-    final profile = await _supabaseService.getUserProfile();
-    final items = await _supabaseService.getMyInventory();
-    final isAdmin = await _supabaseService.isAdmin();
+    try {
+      final profile = await _supabaseService.getUserProfile();
+      final items = await _supabaseService.getMyInventory();
+      final isAdmin = await _supabaseService.isAdmin();
 
-    if (mounted) {
-      setState(() {
-        _profileData = profile;
-        _myItems = items;
-        _isLoading = false;
-        _isAdmin = isAdmin;
-      });
+      if (mounted) {
+        setState(() {
+          _profileData = profile;
+          _myItems = items;
+          _isAdmin = isAdmin;
+        });
+      }
+    } on AppException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("❌ ${e.message}")),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   void _logout() {
     _authService.signOut();
-    // In main.dart, Auth state change will handle navigation,
-    // but to be safe we push replacement to login:
     Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
   }
 
@@ -78,12 +88,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // 1. THE HERO CARD (Gamification)
             _buildHeroStats(score, phone),
-
             const SizedBox(height: 20),
-
-            // 2. MY GARAGE HEADER
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
@@ -94,10 +100,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
             ),
-
             const SizedBox(height: 10),
-
-            // 3. INVENTORY GRID
             _myItems.isEmpty
               ? const Padding(padding: EdgeInsets.all(50), child: Text("Garage Empty", style: TextStyle(color: Colors.grey)))
               : GridView.builder(
@@ -119,10 +122,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // --- WIDGETS ---
-
   Widget _buildHeroStats(int score, String phone) {
-    // Calculate Level based on Score
     String level = "Novice";
     Color color = Colors.grey;
     if (score > 60) { level = "Merchant"; color = Colors.blue; }
@@ -167,13 +167,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           ),
           const SizedBox(height: 20),
-          // STATS ROW
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _statItem("Active", "${_profileData?['active_items'] ?? 0}"),
               _statItem("Sold", "${_profileData?['sold_items'] ?? 0}"),
-              _statItem("Deals", "0"), // Placeholder for future deals count
+              _statItem("Deals", "0"),
             ],
           )
         ],
@@ -194,25 +193,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Background Image
         ClipRRect(
           borderRadius: BorderRadius.circular(15),
           child: Image.network(item.imageUrl, fit: BoxFit.cover),
         ),
-        // Overlay
         Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(15),
             gradient: const LinearGradient(colors: [Colors.black87, Colors.transparent], begin: Alignment.bottomCenter, end: Alignment.center),
           ),
         ),
-        // Delete Button
         Positioned(
           top: 5, right: 5,
           child: GestureDetector(
             onTap: () async {
-              await _supabaseService.deleteItem(item.id);
-              _loadData(); // Refresh UI
+              try {
+                await _supabaseService.deleteItem(item.id);
+                _loadData();
+              } on AppException catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("❌ ${e.message}")),
+                  );
+                }
+              }
             },
             child: Container(
               padding: const EdgeInsets.all(6),
@@ -221,7 +225,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
         ),
-        // Text
         Positioned(
           bottom: 10, left: 10,
           child: Column(

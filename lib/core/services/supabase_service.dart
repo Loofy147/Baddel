@@ -15,7 +15,7 @@ class SupabaseService {
       final response = await _client
           .from('items')
           .select()
-          .order('created_at', ascending: false); // Newest first
+          .order('created_at', ascending: false);
 
       final data = response as List<dynamic>;
       return data.map((json) => Item.fromJson(json)).toList();
@@ -42,7 +42,7 @@ class SupabaseService {
   }
 
   // 2. UPLOAD IMAGE (To Storage Bucket)
-  Future<String?> uploadImage(File imageFile) async {
+  Future<String> uploadImage(File imageFile) async {
     try {
       final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
       final path = 'uploads/$fileName';
@@ -51,7 +51,6 @@ class SupabaseService {
           .from('baddel_images')
           .upload(path, imageFile);
 
-      // Get the Public URL
       final publicUrl = _client.storage
           .from('baddel_images')
           .getPublicUrl(path);
@@ -63,7 +62,7 @@ class SupabaseService {
   }
 
   // 3. POST ITEM (Create Listing) with GEOLOCATION
-  Future<bool> postItem({
+  Future<void> postItem({
     required String title,
     required int price,
     required List<String> imageUrls,
@@ -75,13 +74,10 @@ class SupabaseService {
     try {
       final user = await _authService.currentUser;
       if (user == null) {
-        Logger.error('User not logged in. Cannot post.');
-        return false;
+        throw AppException('User not authenticated. Please log in.', code: 'AUTH_REQUIRED');
       }
       final userId = user.id;
 
-      // Default to Algiers (Monument des Martyrs) if GPS failed or permission denied
-      // WKT Format: POINT(LONGITUDE LATITUDE) - Space separated
       final lat = latitude != null ? (latitude * 1000).round() / 1000 : 36.7525;
       final lng = longitude != null ? (longitude * 1000).round() / 1000 : 3.0588;
       final locationString = 'POINT($lng $lat)';
@@ -94,11 +90,10 @@ class SupabaseService {
         'image_url': imageUrls.first,
         'accepts_swaps': acceptsSwaps,
         'is_cash_only': !acceptsSwaps,
-        'location': locationString, // <--- Sent as WKT String, PostGIS parses this automatically
+        'location': locationString,
         'status': 'active',
         'category': category,
       });
-      return true;
     } catch (e) {
       throw AppException.fromSupabaseError(e);
     }
@@ -114,7 +109,7 @@ class SupabaseService {
       final response = await _client
           .from('items')
           .select()
-          .eq('owner_id', userId) // ONLY MY ITEMS
+          .eq('owner_id', userId)
           .eq('status', 'active');
 
       return (response as List).map((json) => Item.fromJson(json)).toList();
@@ -124,18 +119,17 @@ class SupabaseService {
   }
 
   // 5. SEND AN OFFER (The "Deal" logic)
-  Future<bool> createOffer({
+  Future<void> createOffer({
     required String targetItemId,
     required String sellerId,
     required int cashAmount,
-    String? offeredItemId, // Nullable (if Cash Only)
+    String? offeredItemId,
   }) async {
     try {
       final user = await _authService.currentUser;
-      if (user == null) return false;
+      if (user == null) throw AppException('User not authenticated.', code: 'AUTH_REQUIRED');
       final myId = user.id;
 
-      // Determine the Offer Type
       String type = 'cash_only';
       if (offeredItemId != null && cashAmount > 0) type = 'hybrid';
       if (offeredItemId != null && cashAmount == 0) type = 'swap_pure';
@@ -149,8 +143,6 @@ class SupabaseService {
         'type': type,
         'status': 'pending',
       });
-
-      return true;
     } catch (e) {
       throw AppException.fromSupabaseError(e);
     }
@@ -165,11 +157,10 @@ class SupabaseService {
     }
     final myId = user.id;
 
-    // Fetch offers where I am the Buyer OR the Seller
     yield* _client
         .from('offers')
         .stream(primaryKey: ['id'])
-        .eq('seller_id', myId) // Currently just showing Incoming Offers
+        .eq('seller_id', myId)
         .order('created_at');
   }
 
@@ -192,7 +183,7 @@ class SupabaseService {
         .from('messages')
         .stream(primaryKey: ['id'])
         .eq('offer_id', offerId)
-        .order('created_at', ascending: true); // Oldest first
+        .order('created_at', ascending: true);
   }
 
   // 10. ACCEPT DEAL (Change status to allow chatting)
@@ -209,28 +200,24 @@ class SupabaseService {
   }
 
   // 11. GET USER PROFILE (Stats & Badges)
-  Future<Map<String, dynamic>?> getUserProfile() async {
+  Future<Map<String, dynamic>> getUserProfile() async {
     final user = await _authService.currentUser;
-    if (user == null) return null;
+    if (user == null) throw AppException('Not authenticated', code: 'AUTH_REQUIRED');
     final userId = user.id;
 
     try {
-      // Fetch User Row
       final userProfile = await _client.from('users').select().eq('id', userId).single();
-
-      // Fetch Item Counts (Active vs Sold)
       final items = await _client.from('items').select('status').eq('owner_id', userId);
       final activeCount = items.where((i) => i['status'] == 'active').length;
       final soldCount = items.where((i) => i['status'] == 'sold').length;
 
       return {
-        ...user,
+        ...userProfile,
         'active_items': activeCount,
         'sold_items': soldCount,
       };
     } catch (e) {
-      Logger.error('Error fetching profile', e);
-      return null;
+      throw AppException.fromSupabaseError(e);
     }
   }
 

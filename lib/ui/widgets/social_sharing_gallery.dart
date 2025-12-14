@@ -1,3 +1,4 @@
+import 'package:baddel/core/constants.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:photo_view/photo_view.dart';
@@ -40,7 +41,7 @@ class _SocialSharingGalleryState extends State<SocialSharingGallery> {
 
   void _shareToWhatsApp() async {
     final String text =
-        'Check out this item on Baddel: *${widget.title}*\n\n${widget.imageUrls.first}';
+        '${AppConstants.shareItemWhatsApp} *${widget.title}*\n\n${widget.imageUrls.first}';
     final Uri whatsappUri = Uri.parse('whatsapp://send?text=${Uri.encodeComponent(text)}');
     if (await canLaunchUrl(whatsappUri)) {
       await launchUrl(whatsappUri);
@@ -51,7 +52,7 @@ class _SocialSharingGalleryState extends State<SocialSharingGallery> {
 
   void _shareToFacebook() {
     final String url = widget.imageUrls.first;
-    final String quote = 'Check out this item on Baddel: ${widget.title}';
+    final String quote = '${AppConstants.shareItemTitle}: ${widget.title}';
     final Uri facebookUri =
         Uri.parse('https://www.facebook.com/sharer/sharer.php?u=$url&quote=$quote');
     launchUrl(facebookUri, mode: LaunchMode.externalApplication);

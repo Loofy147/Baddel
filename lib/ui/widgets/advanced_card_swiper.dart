@@ -1,5 +1,6 @@
 // lib/ui/widgets/advanced_card_swiper.dart
 import 'package:baddel/ui/widgets/advanced_card_swiper_controller.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
 
@@ -324,7 +325,7 @@ class SwipeableItemCard extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         image: DecorationImage(
-          image: NetworkImage(imageUrl),
+          image: CachedNetworkImageProvider(imageUrl),
           fit: BoxFit.cover,
         ),
       ),

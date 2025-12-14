@@ -1,3 +1,4 @@
+import 'package:baddel/core/services/error_handler.dart';
 import 'package:baddel/core/services/supabase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:baddel/core/models/item_model.dart';
@@ -14,12 +15,11 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
   late TabController _tabController;
   final TextEditingController _cashController = TextEditingController();
   String? _selectedSwapItemId;
-  double _hybridCashAmount = 0; // The extra cash added
+  double _hybridCashAmount = 0;
 
   @override
   void initState() {
     super.initState();
-    // Two Modes: Cash (0) and Swap (1)
     _tabController = TabController(length: widget.item.acceptsSwaps ? 2 : 1, vsync: this);
   }
 
@@ -33,14 +33,11 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
       ),
       child: Column(
         children: [
-          // 1. DRAG HANDLE
           Container(
             margin: const EdgeInsets.symmetric(vertical: 10),
             width: 40, height: 4,
             decoration: BoxDecoration(color: Colors.grey, borderRadius: BorderRadius.circular(2)),
           ),
-
-          // 2. HEADER
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Row(
@@ -61,8 +58,6 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
               ],
             ),
           ),
-
-          // 3. TABS
           TabBar(
             controller: _tabController,
             indicatorColor: const Color(0xFF2962FF),
@@ -73,16 +68,11 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
               if (widget.item.acceptsSwaps) const Tab(text: "🔄 SWAP ITEM"),
             ],
           ),
-
-          // 4. TAB VIEWS
           Expanded(
             child: TabBarView(
               controller: _tabController,
               children: [
-                // --- CASH TAB ---
                 _buildCashTab(),
-
-                // --- SWAP TAB ---
                 if (widget.item.acceptsSwaps) _buildSwapTab(),
               ],
             ),
@@ -116,17 +106,23 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
           const Spacer(),
           ElevatedButton(
             onPressed: () async {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("💸 Sending Cash Offer...")));
+              try {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("💸 Sending Cash Offer...")));
 
-              final success = await service.createOffer(
-                targetItemId: widget.item.id,
-                sellerId: widget.item.ownerId,
-                cashAmount: int.tryParse(_cashController.text) ?? 0,
-              );
+                await service.createOffer(
+                  targetItemId: widget.item.id,
+                  sellerId: widget.item.ownerId,
+                  cashAmount: int.tryParse(_cashController.text) ?? 0,
+                );
 
-              if(mounted) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(success ? "💸 Cash Offer Sent!" : "❌ Failed to send offer")));
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("💸 Cash Offer Sent!")));
+                }
+              } on AppException catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("❌ ${e.message}")));
+                }
               }
             },
             style: ElevatedButton.styleFrom(
@@ -143,7 +139,6 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
 
   Widget _buildSwapTab() {
     final service = SupabaseService();
-    // Assuming 50,000 DA is max top-up for UI niceness
     final double maxTopUp = widget.item.price * 1.0;
 
     return Padding(
@@ -151,7 +146,6 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. SELECT ITEM
           const Text("1. Select item from your Garage:", style: TextStyle(color: Colors.grey)),
           const SizedBox(height: 10),
           Expanded(
@@ -190,10 +184,7 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
               }
             ),
           ),
-
           const Divider(color: Colors.grey),
-
-          // 2. THE HYBRID SLIDER (Advanced Feature)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -204,29 +195,32 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
           Slider(
             value: _hybridCashAmount,
             min: 0,
-            max: 50000, // Hardcoded max for demo, logically should be dynamic
+            max: 50000,
             activeColor: const Color(0xFF00E676),
             inactiveColor: Colors.grey[800],
-            divisions: 50, // Steps of 1000 DA
+            divisions: 50,
             label: "+ ${_hybridCashAmount.toInt()} DA",
             onChanged: (val) => setState(() => _hybridCashAmount = val),
           ),
-
           const Spacer(),
-
-          // 3. SUBMIT
           ElevatedButton(
             onPressed: () async {
-              if (_selectedSwapItemId == null) return; // Validation
+              if (_selectedSwapItemId == null) return;
 
-              await service.createOffer(
-                targetItemId: widget.item.id,
-                sellerId: widget.item.ownerId,
-                cashAmount: _hybridCashAmount.toInt(), // Pass the hybrid cash
-                offeredItemId: _selectedSwapItemId
-              );
-              if(mounted) Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🚀 Hybrid Offer Sent!")));
+              try {
+                await service.createOffer(
+                  targetItemId: widget.item.id,
+                  sellerId: widget.item.ownerId,
+                  cashAmount: _hybridCashAmount.toInt(),
+                  offeredItemId: _selectedSwapItemId
+                );
+                if(mounted) Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🚀 Hybrid Offer Sent!")));
+              } on AppException catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("❌ ${e.message}")));
+                }
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFBB86FC),
