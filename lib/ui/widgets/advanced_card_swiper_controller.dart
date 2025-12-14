@@ -1,5 +1,5 @@
 // lib/ui/widgets/advanced_card_swiper_controller.dart
-import 'package.flutter/material.dart';
+import 'package:flutter/material.dart';
 
 enum SwipingDirection { left, right }
 
