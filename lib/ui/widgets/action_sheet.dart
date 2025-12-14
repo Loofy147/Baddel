@@ -1,17 +1,21 @@
+import 'package.baddel/core/providers.dart';
+import 'package:baddel/core/services/auth_service.dart';
 import 'package:baddel/core/services/error_handler.dart';
 import 'package:baddel/core/services/supabase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:baddel/core/models/item_model.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-class ActionSheet extends StatefulWidget {
+class ActionSheet extends ConsumerStatefulWidget {
   final Item item;
   const ActionSheet({super.key, required this.item});
 
   @override
-  State<ActionSheet> createState() => _ActionSheetState();
+  ConsumerState<ActionSheet> createState() => _ActionSheetState();
 }
 
-class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStateMixin {
+class _ActionSheetState extends ConsumerState<ActionSheet> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final TextEditingController _cashController = TextEditingController();
   String? _selectedSwapItemId;
@@ -57,6 +61,9 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
                 ),
                 const Spacer(),
                 IconButton(
+                  icon: const Icon(Icons.flag, color: Colors.grey),
+                  onPressed: () => _showReportDialog(context),
+                  tooltip: 'Report Item',
                   icon: const Icon(Icons.flag, color: Colors.red),
                   onPressed: () => _showReportDialog(),
                 ),
@@ -88,7 +95,7 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
   }
 
   Widget _buildCashTab() {
-    final service = SupabaseService();
+    final service = ref.read(supabaseServiceProvider);
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -146,6 +153,9 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
   }
 
   Widget _buildSwapTab() {
+    final service = ref.read(supabaseServiceProvider);
+    final myInventoryAsyncValue = ref.watch(myInventoryProvider);
+    // Assuming 50,000 DA is max top-up for UI niceness
     final service = SupabaseService();
     final double maxTopUp = widget.item.price * 1.0;
 
@@ -158,6 +168,11 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
           const SizedBox(height: 10),
           Expanded(
             flex: 2,
+            child: myInventoryAsyncValue.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (err, stack) => Center(child: Text('Error: $err')),
+              data: (myItems) {
+                if (myItems.isEmpty) return _emptyGarageWidget();
             child: FutureBuilder<List<Item>>(
               future: service.getMyInventory(),
               builder: (context, snapshot) {
@@ -193,8 +208,8 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
                       ),
                     );
                   },
-                 );
-              }
+                );
+              },
             ),
           ),
           const Divider(color: Colors.grey),
@@ -220,6 +235,14 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
             onPressed: () async {
               if (_selectedSwapItemId == null) return; // Validation
 
+              await ref.read(supabaseServiceProvider).createOffer(
+                targetItemId: widget.item.id,
+                sellerId: widget.item.ownerId,
+                cashAmount: _hybridCashAmount.toInt(), // Pass the hybrid cash
+                offeredItemId: _selectedSwapItemId
+              );
+              if(mounted) Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🚀 Hybrid Offer Sent!")));
               try {
                 await service.createOffer(
                   targetItemId: widget.item.id,
@@ -260,6 +283,85 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
     );
   }
 
+  void _showReportDialog(BuildContext context) {
+    String? selectedReason;
+    final notesController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF2C2C2C),
+          title: const Text('Report Item', style: TextStyle(color: Colors.white)),
+          content: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setState) {
+              return SingleChildScrollView(
+                child: ListBody(
+                  children: <Widget>[
+                    const Text('Why are you reporting this item?', style: TextStyle(color: Colors.grey)),
+                    ...['spam', 'inappropriate', 'fraud', 'other'].map((String reason) {
+                      return RadioListTile<String>(
+                        title: Text(reason, style: const TextStyle(color: Colors.white)),
+                        value: reason,
+                        groupValue: selectedReason,
+                        onChanged: (String? value) {
+                          setState(() {
+                            selectedReason = value;
+                          });
+                        },
+                        activeColor: const Color(0xFFBB86FC),
+                      );
+                    }),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: notesController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: const InputDecoration(
+                        hintText: 'Optional notes...',
+                        hintStyle: TextStyle(color: Colors.grey),
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 2,
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Submit Report', style: TextStyle(color: Colors.white)),
+              onPressed: () async {
+                if (selectedReason != null) {
+                  try {
+                    await ref.read(supabaseServiceProvider).reportItem(
+                      itemId: widget.item.id,
+                      reason: selectedReason!,
+                      notes: notesController.text.isNotEmpty ? notesController.text : null,
+                    );
+                    Navigator.of(dialogContext).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('✅ Report submitted. Thank you!')),
+                    );
+                  } catch (e) {
+                    Navigator.of(dialogContext).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('❌ Error: ${e.toString()}')),
+                    );
+                  }
+                }
+              },
+            ),
+          ],
+        );
+      },
   void _showReportDialog() {
     final reasonController = TextEditingController();
     showDialog(

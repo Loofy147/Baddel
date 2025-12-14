@@ -16,6 +16,7 @@ void main() {
 
   setUp(() {
     mockSupabaseClient = MockSupabaseClient();
+    supabaseService = SupabaseService(mockSupabaseClient, mockAuthService);
     mockGoTrueClient = MockGoTrueClient();
 
     // You can use a real SupabaseService instance and mock its client,

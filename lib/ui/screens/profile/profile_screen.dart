@@ -3,13 +3,17 @@ import 'package:flutter/material.dart';
 import 'package:baddel/core/services/auth_service.dart';
 import 'package:baddel/core/services/supabase_service.dart';
 import 'package:baddel/core/models/item_model.dart';
+import 'package:baddel/core/providers.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:baddel/ui/screens/admin/analytics_dashboard.dart';
 import 'package:baddel/ui/screens/garage/upload_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-class ProfileScreen extends StatefulWidget {
+class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
+  void _logout(BuildContext context, WidgetRef ref) {
+    ref.read(authServiceProvider).signOut();
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
@@ -61,11 +65,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    if (_isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-
-    final score = _profileData?['reputation_score'] ?? 50;
-    final phone = _profileData?['phone'] ?? "No Phone";
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profileAsyncValue = ref.watch(userProfileProvider);
+    final inventoryAsyncValue = ref.watch(myInventoryProvider);
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -73,6 +75,56 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: const Text("My Profile"),
         backgroundColor: Colors.black,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.red),
+            onPressed: () => _logout(context, ref),
+          )
+        ],
+      ),
+      body: profileAsyncValue.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, stack) => Center(child: Text('Error: $err')),
+        data: (profileData) {
+          final score = profileData?['reputation_score'] ?? 50;
+          final phone = profileData?['phone'] ?? "No Phone";
+
+          return SingleChildScrollView(
+            child: Column(
+              children: [
+                _buildHeroStats(score, phone, profileData),
+                const SizedBox(height: 20),
+                inventoryAsyncValue.when(
+                  loading: () => const Center(child: CircularProgressIndicator()),
+                  error: (err, stack) => Center(child: Text('Error: $err')),
+                  data: (myItems) => Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text("MY ACTIVE GARAGE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+                            Text("${myItems.length} Items", style: const TextStyle(color: Colors.grey)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      myItems.isEmpty
+                          ? const Padding(padding: EdgeInsets.all(50), child: Text("Garage Empty", style: TextStyle(color: Colors.grey)))
+                          : GridView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              padding: const EdgeInsets.all(15),
+                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                childAspectRatio: 0.8,
+                                crossAxisSpacing: 10,
+                                mainAxisSpacing: 10,
+                              ),
+                              itemCount: myItems.length,
+                              itemBuilder: (context, index) => _buildManageCard(myItems[index], ref),
+                            ),
+                    ],
           if (_isAdmin)
             IconButton(
               icon: const Icon(Icons.analytics, color: Colors.amber),
@@ -147,15 +199,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     crossAxisSpacing: 10,
                     mainAxisSpacing: 10,
                   ),
-                  itemCount: _myItems.length,
-                  itemBuilder: (context, index) => _buildManageCard(_myItems[index]),
                 ),
-          ],
-        ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
 
+  // --- WIDGETS ---
+
+  Widget _buildHeroStats(int score, String phone, Map<String, dynamic>? profileData) {
+    // Calculate Level based on Score
   Widget _buildHeroStats(int score, String phone) {
     String level = "Novice";
     Color color = Colors.grey;
@@ -204,6 +260,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
+              _statItem("Active", "${profileData?['active_items'] ?? 0}"),
+              _statItem("Sold", "${profileData?['sold_items'] ?? 0}"),
+              _statItem("Deals", "0"), // Placeholder for future deals count
               _statItem("Active", "${_profileData?['active_items'] ?? 0}"),
               _statItem("Sold", "${_profileData?['sold_items'] ?? 0}"),
               _statItem("Deals", "0"),
@@ -223,7 +282,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildManageCard(Item item) {
+  Widget _buildManageCard(Item item, WidgetRef ref) {
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -241,6 +300,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           top: 5, right: 5,
           child: GestureDetector(
             onTap: () async {
+              await ref.read(supabaseServiceProvider).deleteItem(item.id);
+              ref.refresh(myInventoryProvider);
               try {
                 await _supabaseService.deleteItem(item.id);
                 _loadData();

@@ -6,8 +6,10 @@ import 'error_handler.dart';
 import 'logger.dart';
 
 class SupabaseService {
-  final _client = Supabase.instance.client;
-  final _authService = AuthService();
+  final SupabaseClient _client;
+  final AuthService _authService;
+
+  SupabaseService(this._client, this._authService);
 
   // 1. GET THE FEED (Fetch Items)
   Future<List<Item>> getFeedItems() async {
@@ -241,6 +243,24 @@ class SupabaseService {
   }
 
   // 13. REPORT ITEM
+  Future<void> reportItem({required String itemId, required String reason, String? notes}) async {
+    final user = await _authService.currentUser;
+    if (user == null) throw AppException('Not authenticated', code: 'AUTH_REQUIRED');
+
+    try {
+      await _client.from('reports').insert({
+        'reporter_id': user.id,
+        'reported_item_id': itemId,
+        'reason': reason,
+        'notes': notes,
+      });
+    } catch (e) {
+      // Catch potential unique constraint violation if user reports the same item twice
+      if (e.toString().contains('duplicate key value violates unique constraint')) {
+        throw AppException('You have already reported this item.', code: 'DUPLICATE_REPORT');
+      }
+      throw AppException.fromSupabaseError(e);
+    }
   Future<void> reportItem(String itemId, String reason) async {
     final user = await _authService.currentUser;
     if (user == null) throw AppException('Not authenticated', code: 'AUTH_REQUIRED');
