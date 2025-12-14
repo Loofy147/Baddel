@@ -1,27 +1,28 @@
 import 'package:baddel/core/validators/input_validator.dart';
 import 'package:flutter/material.dart';
 import 'package:baddel/core/services/supabase_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:baddel/core/providers.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'; // To get current user ID
 
-class ChatScreen extends StatefulWidget {
+class ChatScreen extends ConsumerStatefulWidget {
   final String offerId; // The "Room" ID
   final String otherUserName; // For Header
 
   const ChatScreen({super.key, required this.offerId, required this.otherUserName});
 
   @override
-  State<ChatScreen> createState() => _ChatScreenState();
+  ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _formKey = GlobalKey<FormState>();
   final _controller = TextEditingController();
-  final _service = SupabaseService();
   final _myId = Supabase.instance.client.auth.currentUser?.id;
 
   void _sendMessage() {
     if (_formKey.currentState!.validate()) {
-      _service.sendMessage(widget.offerId, _controller.text.trim());
+      ref.read(supabaseServiceProvider).sendMessage(widget.offerId, _controller.text.trim());
       _controller.clear();
     }
   }
@@ -47,7 +48,7 @@ class _ChatScreenState extends State<ChatScreen> {
           // MESSAGE LIST
           Expanded(
             child: StreamBuilder<List<Map<String, dynamic>>>(
-              stream: _service.getChatStream(widget.offerId),
+              stream: ref.watch(supabaseServiceProvider).getChatStream(widget.offerId),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
 

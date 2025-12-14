@@ -2,13 +2,15 @@ import 'package:baddel/core/services/error_handler.dart';
 import 'package:baddel/ui/screens/chat/chat_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:baddel/core/services/supabase_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:baddel/core/providers.dart';
 
-class OffersScreen extends StatelessWidget {
+class OffersScreen extends ConsumerWidget {
   const OffersScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final service = SupabaseService();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final service = ref.watch(supabaseServiceProvider);
 
     return Scaffold(
       backgroundColor: Colors.black,
