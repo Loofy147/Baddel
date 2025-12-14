@@ -63,52 +63,41 @@ class _ActionSheetState extends ConsumerState<ActionSheet> with SingleTickerProv
               borderRadius: BorderRadius.circular(15.0),
               border: Border.all(color: Colors.grey[800]!),
             ),
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: Image.network(widget.item.imageUrl, width: 60, height: 60, fit: BoxFit.cover),
-                ),
-                const SizedBox(width: 15),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text("Make an Offer for", style: TextStyle(color: Colors.grey, fontSize: 12)),
-                      Text(
-                        widget.item.title,
-                        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      Text("${widget.item.price} DZD", style: const TextStyle(color: Color(0xFF00E676), fontSize: 14, fontWeight: FontWeight.bold)),
-                    ],
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.network(widget.item.imageUrl, width: 60, height: 60, fit: BoxFit.cover),
                   ),
-                )
-              ],
+                  const SizedBox(width: 15),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("Make an Offer for", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                        Text(
+                          widget.item.title,
+                          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text("${widget.item.price} DZD", style: const TextStyle(color: Color(0xFF00E676), fontSize: 14, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.flag, color: Colors.grey),
+                    onPressed: () => _showReportDialog(context),
+                    tooltip: 'Report Item',
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 10),
 
           // 3. TABS
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text("Make an Offer for", style: TextStyle(color: Colors.grey, fontSize: 12)),
-                    Text(widget.item.title, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                    Text("${widget.item.price} DZD", style: const TextStyle(color: Color(0xFF00E676), fontSize: 14, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.flag, color: Colors.grey),
-                  onPressed: () => _showReportDialog(context),
-                  tooltip: 'Report Item',
-                ),
-              ],
-            ),
-          ),
           TabBar(
             controller: _tabController,
             indicatorColor: const Color(0xFF2962FF),
@@ -183,29 +172,6 @@ class _ActionSheetState extends ConsumerState<ActionSheet> with SingleTickerProv
                     ? const CircularProgressIndicator(color: Colors.black)
                     : const Text("SEND CASH OFFER", style: TextStyle(fontWeight: FontWeight.bold)),
               );
-          ElevatedButton(
-            onPressed: () async {
-              try {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("💸 Sending Cash Offer...")));
-
-                await service.createOffer(
-                  targetItemId: widget.item.id,
-                  sellerId: widget.item.ownerId,
-                  cashAmount: int.tryParse(_cashController.text) ?? 0,
-                );
-
-                if (mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("💸 Cash Offer Sent!")));
-                }
-              } catch (e) {
-                if (mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed to send offer: $e'), backgroundColor: Colors.red),
-                  );
-                }
-              }
             },
           ),
         ],
@@ -214,11 +180,7 @@ class _ActionSheetState extends ConsumerState<ActionSheet> with SingleTickerProv
   }
 
   Widget _buildSwapTab() {
-    final service = ref.read(supabaseServiceProvider);
     final myInventoryAsyncValue = ref.watch(myInventoryProvider);
-    // Assuming 50,000 DA is max top-up for UI niceness
-    final service = SupabaseService();
-    final double maxTopUp = widget.item.price * 1.0;
 
     return Padding(
       padding: const EdgeInsets.all(20),
@@ -284,10 +246,6 @@ class _ActionSheetState extends ConsumerState<ActionSheet> with SingleTickerProv
           ElevatedButton(
             onPressed: (_selectedSwapItemId != null && !_isSubmitting) ? () async {
               setState(() => _isSubmitting = true);
-              await service.createOffer(
-            onPressed: () async {
-              if (_selectedSwapItemId == null) return; // Validation
-
               await ref.read(supabaseServiceProvider).createOffer(
                 targetItemId: widget.item.id,
                 sellerId: widget.item.ownerId,
@@ -299,28 +257,6 @@ class _ActionSheetState extends ConsumerState<ActionSheet> with SingleTickerProv
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🚀 Hybrid Offer Sent!")));
               }
             } : null,
-              if(mounted) Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🚀 Hybrid Offer Sent!")));
-              try {
-                await service.createOffer(
-                  targetItemId: widget.item.id,
-                  sellerId: widget.item.ownerId,
-                  cashAmount: _hybridCashAmount.toInt(), // Pass the hybrid cash
-                  offeredItemId: _selectedSwapItemId,
-                );
-                if (mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🚀 Hybrid Offer Sent!")));
-                }
-              } catch (e) {
-                if (mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed to send offer: $e'), backgroundColor: Colors.red),
-                  );
-                }
-              }
-            },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFBB86FC),
               foregroundColor: Colors.black,
@@ -358,88 +294,6 @@ class _ActionSheetState extends ConsumerState<ActionSheet> with SingleTickerProv
           ),
         ),
       ),
-    );
-  }
-
-  void _showReportDialog(BuildContext context) {
-    String? selectedReason;
-    final notesController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF2C2C2C),
-          title: const Text('Report Item', style: TextStyle(color: Colors.white)),
-          content: StatefulBuilder(
-            builder: (BuildContext context, StateSetter setState) {
-              return SingleChildScrollView(
-                child: ListBody(
-                  children: <Widget>[
-                    const Text('Why are you reporting this item?', style: TextStyle(color: Colors.grey)),
-                    ...['spam', 'inappropriate', 'fraud', 'other'].map((String reason) {
-                      return RadioListTile<String>(
-                        title: Text(reason, style: const TextStyle(color: Colors.white)),
-                        value: reason,
-                        groupValue: selectedReason,
-                        onChanged: (String? value) {
-                          setState(() {
-                            selectedReason = value;
-                          });
-                        },
-                        activeColor: const Color(0xFFBB86FC),
-                      );
-                    }),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: notesController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: const InputDecoration(
-                        hintText: 'Optional notes...',
-                        hintStyle: TextStyle(color: Colors.grey),
-                        border: OutlineInputBorder(),
-                      ),
-                      maxLines: 2,
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              child: const Text('Submit Report', style: TextStyle(color: Colors.white)),
-              onPressed: () async {
-                if (selectedReason != null) {
-                  try {
-                    await ref.read(supabaseServiceProvider).reportItem(
-                      itemId: widget.item.id,
-                      reason: selectedReason!,
-                      notes: notesController.text.isNotEmpty ? notesController.text : null,
-                    );
-                    Navigator.of(dialogContext).pop();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('✅ Report submitted. Thank you!')),
-                    );
-                  } catch (e) {
-                    Navigator.of(dialogContext).pop();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('❌ Error: ${e.toString()}')),
-                    );
-                  }
-                }
-              },
-            ),
-          ],
-        );
-      },
     );
   }
 
