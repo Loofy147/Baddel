@@ -1,31 +1,99 @@
 class Item {
   final String id;
-  final String ownerId; // <-- NEW
+  final String ownerId;
   final String title;
   final int price;
   final String imageUrl;
+  final List<String> imageUrls;
   final bool acceptsSwaps;
-  final String locationName;
+  final String? category;
+  final double? distanceMeters;
+  final String distanceDisplay;
 
   Item({
     required this.id,
-    required this.ownerId, // <-- NEW
+    required this.ownerId,
     required this.title,
     required this.price,
     required this.imageUrl,
+    required this.imageUrls,
     required this.acceptsSwaps,
-    required this.locationName,
+    this.category,
+    this.distanceMeters,
+    this.distanceDisplay = 'Unknown',
   });
 
   factory Item.fromJson(Map<String, dynamic> json) {
     return Item(
-      id: json['id'],
-      ownerId: json['owner_id'] ?? '', // <-- MAP IT
-      title: json['title'],
-      price: json['price'] ?? 0,
-      imageUrl: json['image_url'] ?? 'https://via.placeholder.com/400',
-      acceptsSwaps: json['accepts_swaps'] ?? false,
-      locationName: 'Alger Centre',
+      id: json['id'] as String,
+      ownerId: json['owner_id'] as String? ?? '',
+      title: json['title'] as String,
+      price: (json['price'] as num?)?.toInt() ?? 0,
+      imageUrl: json['image_url'] as String? ?? 'https://via.placeholder.com/400',
+      imageUrls: (json['image_urls'] as List<dynamic>?)?.map((e) => e as String).toList() ?? [json['image_url'] as String? ?? 'https://via.placeholder.com/400'],
+      acceptsSwaps: json['accepts_swaps'] as bool? ?? false,
+      category: json['category'] as String?,
+      distanceMeters: (json['distance_meters'] as num?)?.toDouble(),
+      distanceDisplay: json['distance_display'] as String? ?? 'Unknown',
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'owner_id': ownerId,
+      'title': title,
+      'price': price,
+      'image_url': imageUrl,
+      'image_urls': imageUrls,
+      'accepts_swaps': acceptsSwaps,
+      'category': category,
+      'distance_meters': distanceMeters,
+      'distance_display': distanceDisplay,
+    };
+  }
+
+  bool get isNearby => (distanceMeters ?? double.infinity) < 5000;
+
+  String get formattedPrice => '$price DZD';
+
+  Item copyWith({
+    String? id,
+    String? ownerId,
+    String? title,
+    int? price,
+    String? imageUrl,
+    List<String>? imageUrls,
+    bool? acceptsSwaps,
+    String? category,
+    double? distanceMeters,
+    String? distanceDisplay,
+  }) {
+    return Item(
+      id: id ?? this.id,
+      ownerId: ownerId ?? this.ownerId,
+      title: title ?? this.title,
+      price: price ?? this.price,
+      imageUrl: imageUrl ?? this.imageUrl,
+      imageUrls: imageUrls ?? this.imageUrls,
+      acceptsSwaps: acceptsSwaps ?? this.acceptsSwaps,
+      category: category ?? this.category,
+      distanceMeters: distanceMeters ?? this.distanceMeters,
+      distanceDisplay: distanceDisplay ?? this.distanceDisplay,
+    );
+  }
+
+  @override
+  String toString() {
+    return 'Item(id: $id, title: $title, price: $price, distance: $distanceDisplay)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is Item && other.id == id;
+  }
+
+  @override
+  int get hashCode => id.hashCode;
 }

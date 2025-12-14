@@ -1,17 +1,22 @@
+import 'package.baddel/core/providers.dart';
+import 'package:baddel/core/services/auth_service.dart';
+import 'package:baddel/core/services/error_handler.dart';
 import 'package:baddel/core/services/supabase_service.dart';
 import 'package:baddel/ui/screens/garage/upload_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:baddel/core/models/item_model.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-class ActionSheet extends StatefulWidget {
+class ActionSheet extends ConsumerStatefulWidget {
   final Item item;
   const ActionSheet({super.key, required this.item});
 
   @override
-  State<ActionSheet> createState() => _ActionSheetState();
+  ConsumerState<ActionSheet> createState() => _ActionSheetState();
 }
 
-class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStateMixin {
+class _ActionSheetState extends ConsumerState<ActionSheet> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final TextEditingController _cashController = TextEditingController();
   String? _selectedSwapItemId;
@@ -20,6 +25,7 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
 
   final SupabaseService _service = SupabaseService();
   late Future<List<Item>> _inventoryFuture;
+  double _hybridCashAmount = 0;
 
   @override
   void initState() {
@@ -47,7 +53,6 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
       ),
       child: Column(
         children: [
-          // 1. DRAG HANDLE
           Container(
             margin: const EdgeInsets.symmetric(vertical: 10),
             width: 40, height: 4,
@@ -67,6 +72,8 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
               borderRadius: BorderRadius.circular(15.0),
               border: Border.all(color: Colors.grey[800]!),
             ),
+          Padding(
+            padding: const EdgeInsets.all(16.0),
             child: Row(
               children: [
                 ClipRRect(
@@ -94,6 +101,25 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
           const SizedBox(height: 10),
 
           // 3. TABS
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("Make an Offer for", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                    Text(widget.item.title, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                    Text("${widget.item.price} DZD", style: const TextStyle(color: Color(0xFF00E676), fontSize: 14, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.flag, color: Colors.grey),
+                  onPressed: () => _showReportDialog(context),
+                  tooltip: 'Report Item',
+                  icon: const Icon(Icons.flag, color: Colors.red),
+                  onPressed: () => _showReportDialog(),
+                ),
+              ],
+            ),
+          ),
           TabBar(
             controller: _tabController,
             indicatorColor: const Color(0xFF2962FF),
@@ -104,16 +130,11 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
               if (widget.item.acceptsSwaps) const Tab(text: "🔄 SWAP ITEM"),
             ],
           ),
-
-          // 4. TAB VIEWS
           Expanded(
             child: TabBarView(
               controller: _tabController,
               children: [
-                // --- CASH TAB ---
                 _buildCashTab(),
-
-                // --- SWAP TAB ---
                 if (widget.item.acceptsSwaps) _buildSwapTab(),
               ],
             ),
@@ -124,7 +145,7 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
   }
 
   Widget _buildCashTab() {
-    final service = SupabaseService();
+    final service = ref.read(supabaseServiceProvider);
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -173,6 +194,29 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
                     ? const CircularProgressIndicator(color: Colors.black)
                     : const Text("SEND CASH OFFER", style: TextStyle(fontWeight: FontWeight.bold)),
               );
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("💸 Sending Cash Offer...")));
+
+                await service.createOffer(
+                  targetItemId: widget.item.id,
+                  sellerId: widget.item.ownerId,
+                  cashAmount: int.tryParse(_cashController.text) ?? 0,
+                );
+
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("💸 Cash Offer Sent!")));
+                }
+              } catch (e) {
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to send offer: $e'), backgroundColor: Colors.red),
+                  );
+                }
+              }
             },
           ),
         ],
@@ -181,7 +225,10 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
   }
 
   Widget _buildSwapTab() {
+    final service = ref.read(supabaseServiceProvider);
+    final myInventoryAsyncValue = ref.watch(myInventoryProvider);
     // Assuming 50,000 DA is max top-up for UI niceness
+    final service = SupabaseService();
     final double maxTopUp = widget.item.price * 1.0;
 
     return Padding(
@@ -189,11 +236,15 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. SELECT ITEM
           const Text("1. Select item from your Garage:", style: TextStyle(color: Colors.grey)),
           const SizedBox(height: 10),
           Expanded(
             flex: 2,
+            child: myInventoryAsyncValue.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (err, stack) => Center(child: Text('Error: $err')),
+              data: (myItems) {
+                if (myItems.isEmpty) return _emptyGarageWidget();
             child: FutureBuilder<List<Item>>(
               future: _inventoryFuture,
               builder: (context, snapshot) {
@@ -203,6 +254,12 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
                 if (!snapshot.hasData || snapshot.data!.isEmpty) {
                   return _emptyGarageWidget();
                 }
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.red)),
+                  );
+                }
+                if (!snapshot.hasData || snapshot.data!.isEmpty) return _emptyGarageWidget();
 
                 final myItems = snapshot.data!;
                 return ListView.builder(
@@ -229,10 +286,7 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
               },
             ),
           ),
-
           const Divider(color: Colors.grey),
-
-          // 2. THE HYBRID SLIDER (Advanced Feature)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -243,21 +297,22 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
           Slider(
             value: _hybridCashAmount,
             min: 0,
-            max: 50000, // Hardcoded max for demo, logically should be dynamic
+            max: 50000,
             activeColor: const Color(0xFF00E676),
             inactiveColor: Colors.grey[800],
-            divisions: 50, // Steps of 1000 DA
+            divisions: 50,
             label: "+ ${_hybridCashAmount.toInt()} DA",
             onChanged: (val) => setState(() => _hybridCashAmount = val),
           ),
-
           const Spacer(),
-
-          // 3. SUBMIT
           ElevatedButton(
             onPressed: (_selectedSwapItemId != null && !_isSubmitting) ? () async {
               setState(() => _isSubmitting = true);
               await service.createOffer(
+            onPressed: () async {
+              if (_selectedSwapItemId == null) return; // Validation
+
+              await ref.read(supabaseServiceProvider).createOffer(
                 targetItemId: widget.item.id,
                 sellerId: widget.item.ownerId,
                 cashAmount: _hybridCashAmount.toInt(),
@@ -268,6 +323,28 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🚀 Hybrid Offer Sent!")));
               }
             } : null,
+              if(mounted) Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🚀 Hybrid Offer Sent!")));
+              try {
+                await service.createOffer(
+                  targetItemId: widget.item.id,
+                  sellerId: widget.item.ownerId,
+                  cashAmount: _hybridCashAmount.toInt(), // Pass the hybrid cash
+                  offeredItemId: _selectedSwapItemId,
+                );
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🚀 Hybrid Offer Sent!")));
+                }
+              } catch (e) {
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to send offer: $e'), backgroundColor: Colors.red),
+                  );
+                }
+              }
+            },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFBB86FC),
               foregroundColor: Colors.black,
@@ -304,6 +381,135 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _showReportDialog(BuildContext context) {
+    String? selectedReason;
+    final notesController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF2C2C2C),
+          title: const Text('Report Item', style: TextStyle(color: Colors.white)),
+          content: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setState) {
+              return SingleChildScrollView(
+                child: ListBody(
+                  children: <Widget>[
+                    const Text('Why are you reporting this item?', style: TextStyle(color: Colors.grey)),
+                    ...['spam', 'inappropriate', 'fraud', 'other'].map((String reason) {
+                      return RadioListTile<String>(
+                        title: Text(reason, style: const TextStyle(color: Colors.white)),
+                        value: reason,
+                        groupValue: selectedReason,
+                        onChanged: (String? value) {
+                          setState(() {
+                            selectedReason = value;
+                          });
+                        },
+                        activeColor: const Color(0xFFBB86FC),
+                      );
+                    }),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: notesController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: const InputDecoration(
+                        hintText: 'Optional notes...',
+                        hintStyle: TextStyle(color: Colors.grey),
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 2,
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Submit Report', style: TextStyle(color: Colors.white)),
+              onPressed: () async {
+                if (selectedReason != null) {
+                  try {
+                    await ref.read(supabaseServiceProvider).reportItem(
+                      itemId: widget.item.id,
+                      reason: selectedReason!,
+                      notes: notesController.text.isNotEmpty ? notesController.text : null,
+                    );
+                    Navigator.of(dialogContext).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('✅ Report submitted. Thank you!')),
+                    );
+                  } catch (e) {
+                    Navigator.of(dialogContext).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('❌ Error: ${e.toString()}')),
+                    );
+                  }
+                }
+              },
+            ),
+          ],
+        );
+      },
+  void _showReportDialog() {
+    final reasonController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text('Report Item', style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: reasonController,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: 'Enter reason for reporting',
+            hintStyle: TextStyle(color: Colors.grey),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (reasonController.text.trim().isEmpty) return;
+              final service = SupabaseService();
+              try {
+                await service.reportItem(widget.item.id, reasonController.text.trim());
+                if (mounted) {
+                  Navigator.pop(context); // Close dialog
+                  Navigator.pop(context); // Close action sheet
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Report submitted. Thank you for your feedback.')),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to submit report: $e'), backgroundColor: Colors.red),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Submit Report'),
+          ),
+        ],
       ),
     );
   }

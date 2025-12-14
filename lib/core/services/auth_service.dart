@@ -5,7 +5,13 @@ class AuthService {
   final _supabase = Supabase.instance.client;
 
   // 1. GET CURRENT USER
-  User? get currentUser => _supabase.auth.currentUser;
+  Future<User?> get currentUser async {
+    final session = _supabase.auth.currentSession;
+    if (session == null || session.expiresAt?.isBefore(DateTime.now()) == true) {
+      await _supabase.auth.refreshSession();
+    }
+    return _supabase.auth.currentUser;
+  }
 
   // 2. CHECK SESSION (Redirect Logic)
   bool get isLoggedIn => _supabase.auth.currentSession != null;

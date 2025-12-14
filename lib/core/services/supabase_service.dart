@@ -1,9 +1,15 @@
 import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:baddel/core/models/item_model.dart';
+import 'auth_service.dart';
+import 'error_handler.dart';
+import 'logger.dart';
 
 class SupabaseService {
-  final _client = Supabase.instance.client;
+  final SupabaseClient _client;
+  final AuthService _authService;
+
+  SupabaseService(this._client, this._authService);
 
   // 1. GET THE FEED (Fetch Items)
   Future<List<Item>> getFeedItems() async {
@@ -11,18 +17,34 @@ class SupabaseService {
       final response = await _client
           .from('items')
           .select()
-          .order('created_at', ascending: false); // Newest first
+          .order('created_at', ascending: false);
 
       final data = response as List<dynamic>;
       return data.map((json) => Item.fromJson(json)).toList();
     } catch (e) {
-      print('🔴 Error fetching feed: $e');
-      return [];
+      throw AppException.fromSupabaseError(e);
+    }
+  }
+
+  Future<List<Item>> getNearbyItems({required double lat, required double lng, required int radiusInMeters}) async {
+    if (radiusInMeters < 100 || radiusInMeters > 100000) {
+      throw ArgumentError('Radius must be between 100m and 100km');
+    }
+    try {
+      final response = await _client.rpc('get_items_nearby', params: {
+        'lat': lat,
+        'lng': lng,
+        'radius_meters': radiusInMeters,
+      });
+      final data = response as List<dynamic>;
+      return data.map((json) => Item.fromJson(json)).toList();
+    } catch (e) {
+      throw AppException.fromSupabaseError(e);
     }
   }
 
   // 2. UPLOAD IMAGE (To Storage Bucket)
-  Future<String?> uploadImage(File imageFile) async {
+  Future<String> uploadImage(File imageFile) async {
     try {
       final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
       final path = 'uploads/$fileName';
@@ -31,88 +53,85 @@ class SupabaseService {
           .from('baddel_images')
           .upload(path, imageFile);
 
-      // Get the Public URL
       final publicUrl = _client.storage
           .from('baddel_images')
           .getPublicUrl(path);
 
       return publicUrl;
     } catch (e) {
-      print('🔴 Error uploading image: $e');
-      return null;
+      throw AppException.fromSupabaseError(e);
     }
   }
 
   // 3. POST ITEM (Create Listing) with GEOLOCATION
-  Future<bool> postItem({
+  Future<void> postItem({
     required String title,
     required int price,
-    required String imageUrl,
+    required List<String> imageUrls,
     required bool acceptsSwaps,
+    String? category,
     double? latitude,
     double? longitude,
   }) async {
     try {
-      final userId = _client.auth.currentUser?.id;
-      if (userId == null) {
-        print('🔴 User not logged in. Cannot post.');
-        return false;
+      final user = await _authService.currentUser;
+      if (user == null) {
+        throw AppException('User not authenticated. Please log in.', code: 'AUTH_REQUIRED');
       }
+      final userId = user.id;
 
-      // Default to Algiers (Monument des Martyrs) if GPS failed or permission denied
-      // WKT Format: POINT(LONGITUDE LATITUDE) - Space separated
-      final lat = latitude ?? 36.7525;
-      final lng = longitude ?? 3.0588;
+      final lat = latitude != null ? (latitude * 1000).round() / 1000 : 36.7525;
+      final lng = longitude != null ? (longitude * 1000).round() / 1000 : 3.0588;
       final locationString = 'POINT($lng $lat)';
 
       await _client.from('items').insert({
         'owner_id': userId,
         'title': title,
         'price': price,
-        'image_url': imageUrl,
+        'image_urls': imageUrls,
+        'image_url': imageUrls.first,
         'accepts_swaps': acceptsSwaps,
         'is_cash_only': !acceptsSwaps,
-        'location': locationString, // <--- Sent as WKT String, PostGIS parses this automatically
+        'location': locationString,
         'status': 'active',
+        'category': category,
       });
-      return true;
     } catch (e) {
-      print('🔴 Error posting item: $e');
-      return false;
+      throw AppException.fromSupabaseError(e);
     }
   }
 
   // 4. GET MY GARAGE (Items owned by current user)
   Future<List<Item>> getMyInventory() async {
     try {
-      final userId = _client.auth.currentUser?.id;
-      if (userId == null) return [];
+      final user = await _authService.currentUser;
+      if (user == null) return [];
+      final userId = user.id;
 
       final response = await _client
           .from('items')
           .select()
-          .eq('owner_id', userId) // ONLY MY ITEMS
+          .eq('owner_id', userId)
           .eq('status', 'active');
 
       return (response as List).map((json) => Item.fromJson(json)).toList();
     } catch (e) {
-      print('🔴 Error fetching inventory: $e');
-      return [];
+      throw AppException.fromSupabaseError(e);
     }
   }
 
   // 5. SEND AN OFFER (The "Deal" logic)
-  Future<bool> createOffer({
+  Future<void> createOffer({
     required String targetItemId,
     required String sellerId,
     required int cashAmount,
-    String? offeredItemId, // Nullable (if Cash Only)
+    String? offeredItemId,
   }) async {
     try {
-      final myId = _client.auth.currentUser?.id;
-      if (myId == null) return false;
+      final user = await _authService.currentUser;
+      if (user == null) throw AppException('Not authenticated', code: 'AUTH_REQUIRED');
+      final myId = user.id;
 
-      // Determine the Offer Type
       String type = 'cash_only';
       if (offeredItemId != null && cashAmount > 0) type = 'hybrid';
       if (offeredItemId != null && cashAmount == 0) type = 'swap_pure';
@@ -126,31 +145,33 @@ class SupabaseService {
         'type': type,
         'status': 'pending',
       });
-
-      return true;
     } catch (e) {
-      print('🔴 Error creating offer: $e');
-      return false;
+      throw AppException.fromSupabaseError(e);
     }
   }
 
   // 6. GET MY OFFERS (Simple Version)
-  Stream<List<Map<String, dynamic>>> getOffersStream() {
-    final myId = _client.auth.currentUser?.id;
-    if (myId == null) return const Stream.empty();
+  Stream<List<Map<String, dynamic>>> getOffersStream() async* {
+    final user = await _authService.currentUser;
+    if (user == null) {
+      yield [];
+      return;
+    }
+    final myId = user.id;
 
-    // Fetch offers where I am the Buyer OR the Seller
-    return _client
+    // Fetch offers where I am the Seller
+    yield* _client
         .from('offers')
         .stream(primaryKey: ['id'])
-        .eq('seller_id', myId) // Currently just showing Incoming Offers
+        .eq('seller_id', myId)
         .order('created_at');
   }
 
   // 8. SEND MESSAGE
   Future<void> sendMessage(String offerId, String content) async {
-    final myId = _client.auth.currentUser?.id;
-    if (myId == null) return;
+    final user = await _authService.currentUser;
+    if (user == null) return;
+    final myId = user.id;
 
     await _client.from('messages').insert({
       'offer_id': offerId,
@@ -165,42 +186,90 @@ class SupabaseService {
         .from('messages')
         .stream(primaryKey: ['id'])
         .eq('offer_id', offerId)
-        .order('created_at', ascending: true); // Oldest first
+        .order('created_at', ascending: true);
   }
 
   // 10. ACCEPT DEAL (Change status to allow chatting)
   Future<void> acceptOffer(String offerId) async {
+    final user = await _authService.currentUser;
+    if (user == null) throw AppException('Not authenticated', code: 'AUTH_REQUIRED');
+
+    final offer = await _client.from('offers').select('seller_id').eq('id', offerId).single();
+    if (offer['seller_id'] != user.id) {
+      throw AppException('Unauthorized to accept this offer', code: 'UNAUTHORIZED');
+    }
+
     await _client.from('offers').update({'status': 'accepted'}).eq('id', offerId);
   }
 
   // 11. GET USER PROFILE (Stats & Badges)
-  Future<Map<String, dynamic>?> getUserProfile() async {
-    final userId = _client.auth.currentUser?.id;
-    if (userId == null) return null;
+  Future<Map<String, dynamic>> getUserProfile() async {
+    final user = await _authService.currentUser;
+    if (user == null) throw AppException('Not authenticated', code: 'AUTH_REQUIRED');
+    final userId = user.id;
 
     try {
-      // Fetch User Row
-      final user = await _client.from('users').select().eq('id', userId).single();
-
-      // Fetch Item Counts (Active vs Sold)
+      final userProfile = await _client.from('users').select().eq('id', userId).single();
       final items = await _client.from('items').select('status').eq('owner_id', userId);
       final activeCount = items.where((i) => i['status'] == 'active').length;
       final soldCount = items.where((i) => i['status'] == 'sold').length;
 
       return {
-        ...user,
+        ...userProfile,
         'active_items': activeCount,
         'sold_items': soldCount,
       };
     } catch (e) {
-      print('🔴 Error fetching profile: $e');
-      return null;
+      throw AppException.fromSupabaseError(e);
     }
   }
 
   // 12. DELETE ITEM (or Mark Sold)
   Future<void> deleteItem(String itemId) async {
-    // We don't actually delete; we mark as 'deleted' to keep data
-    await _client.from('items').update({'status': 'deleted'}).eq('id', itemId);
+    final user = await _authService.currentUser;
+    if (user == null) throw AppException('Not authenticated', code: 'AUTH_REQUIRED');
+    final userId = user.id;
+
+    final result = await _client
+      .from('items')
+      .update({'status': 'deleted'})
+      .eq('id', itemId)
+      .eq('owner_id', userId)
+      .select();
+
+    if (result.isEmpty) {
+      throw AppException('Unauthorized or item not found', code: 'UNAUTHORIZED');
+    }
+  }
+
+  // 13. REPORT ITEM
+  Future<void> reportItem({required String itemId, required String reason, String? notes}) async {
+    final user = await _authService.currentUser;
+    if (user == null) throw AppException('Not authenticated', code: 'AUTH_REQUIRED');
+
+    try {
+      await _client.from('reports').insert({
+        'reporter_id': user.id,
+        'reported_item_id': itemId,
+        'reason': reason,
+        'notes': notes,
+      });
+    } catch (e) {
+      // Catch potential unique constraint violation if user reports the same item twice
+      if (e.toString().contains('duplicate key value violates unique constraint')) {
+        throw AppException('You have already reported this item.', code: 'DUPLICATE_REPORT');
+      }
+      throw AppException.fromSupabaseError(e);
+    }
+  Future<void> reportItem(String itemId, String reason) async {
+    final user = await _authService.currentUser;
+    if (user == null) throw AppException('Not authenticated', code: 'AUTH_REQUIRED');
+
+    await _client.from('reports').insert({
+      'reporter_id': user.id,
+      'item_id': itemId,
+      'reason': reason,
+      'status': 'pending'
+    });
   }
 }
