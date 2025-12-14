@@ -260,16 +260,84 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
         Positioned(
-          bottom: 10, left: 10,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          bottom: 10, left: 10, right: 10,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(item.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-              Text("${item.price} DA", style: const TextStyle(color: Color(0xFF00E676), fontSize: 12)),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(item.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text("${item.price} DA", style: const TextStyle(color: Color(0xFF00E676), fontSize: 12)),
+                ],
+              ),
+              IconButton(
+                icon: const Icon(Icons.bolt, color: Colors.amber),
+                onPressed: () => _showBoostDialog(item),
+              ),
             ],
           ),
         )
       ],
+    );
+  }
+
+  void _showBoostDialog(Item item) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: Row(
+          children: [
+            const Icon(Icons.bolt, color: Colors.amber),
+            const SizedBox(width: 10),
+            const Text('Boost Listing', style: TextStyle(color: Colors.white)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Get your item seen by more people!', style: TextStyle(color: Colors.grey[400])),
+            const SizedBox(height: 20),
+            const Text('Choose a boost duration:', style: TextStyle(color: Colors.white)),
+            const SizedBox(height: 10),
+            // Placeholder options
+            ListTile(
+              leading: const Icon(Icons.local_fire_department, color: Colors.amber),
+              title: const Text('24 Hours', style: TextStyle(color: Colors.white)),
+              subtitle: Text('100 DZD', style: TextStyle(color: Colors.grey[400])),
+              onTap: () {},
+            ),
+            ListTile(
+              leading: const Icon(Icons.local_fire_department, color: Colors.amber),
+              title: const Text('3 Days', style: TextStyle(color: Colors.white)),
+              subtitle: Text('250 DZD', style: TextStyle(color: Colors.grey[400])),
+              onTap: () {},
+            ),
+            ListTile(
+              leading: const Icon(Icons.local_fire_department, color: Colors.amber),
+              title: const Text('7 Days', style: TextStyle(color: Colors.white)),
+              subtitle: Text('500 DZD', style: TextStyle(color: Colors.grey[400])),
+              onTap: () {},
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          Tooltip(
+            message: 'Coming Soon: Payment integration is under development',
+            child: ElevatedButton(
+              onPressed: null, // Disabled
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.grey),
+              child: const Text('Proceed to Payment'),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

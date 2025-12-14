@@ -295,37 +295,79 @@ class _UploadScreenState extends State<UploadScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: _isUploading ? null : _submitListing,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2962FF),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: _isUploading
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const Text(
-                          'LIST ITEM',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1,
-                          ),
-                        ),
+
+              const SizedBox(height: 40),
+
+              // 4. SUBMIT BUTTON
+              ElevatedButton(
+                onPressed: _isUploading
+                    ? null
+                    : () async {
+                        if (_formKey.currentState!.validate() && _imageFile != null) {
+                          setState(() => _isUploading = true);
+
+                          try {
+                            // 2. GET LOCATION
+                            Position? position;
+                            try {
+                              LocationPermission permission = await Geolocator.checkPermission();
+                              if (permission == LocationPermission.denied) {
+                                permission = await Geolocator.requestPermission();
+                              }
+
+                              if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
+                                position = await Geolocator.getCurrentPosition();
+                              }
+                            } catch (e) {
+                              print("GPS Error: $e"); // Fallback will happen in service
+                            }
+
+                            // 3. Show Loading
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🚀 Uploading to Supabase...")));
+
+                            final service = SupabaseService();
+
+                            // 4. Upload Image
+                            final imageUrl = await service.uploadImage(_imageFile!);
+
+                            if (imageUrl == null) {
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Image Upload Failed")));
+                              return;
+                            }
+
+                            // 5. Create Database Entry with Geolocation
+                            await service.postItem(
+                              title: _titleController.text,
+                              price: int.parse(_priceController.text),
+                              imageUrl: imageUrl,
+                              acceptsSwaps: _acceptsSwaps,
+                              latitude: position?.latitude, // NEW
+                              longitude: position?.longitude, // NEW
+                            );
+
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Item Live in the Deck!")));
+                              Navigator.pop(context); // Close screen
+                            }
+                          } catch (e) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Error posting item: $e'), backgroundColor: Colors.red),
+                              );
+                            }
+                          } finally {
+                            if (mounted) {
+                              setState(() => _isUploading = false);
+                            }
+                          }
+                        } else if (_imageFile == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please select an image")));
+                        }
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2962FF),
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 50),
                 ),
               ),
             ],

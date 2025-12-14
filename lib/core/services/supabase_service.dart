@@ -127,7 +127,7 @@ class SupabaseService {
   }) async {
     try {
       final user = await _authService.currentUser;
-      if (user == null) throw AppException('User not authenticated.', code: 'AUTH_REQUIRED');
+      if (user == null) throw AppException('Not authenticated', code: 'AUTH_REQUIRED');
       final myId = user.id;
 
       String type = 'cash_only';
@@ -157,6 +157,7 @@ class SupabaseService {
     }
     final myId = user.id;
 
+    // Fetch offers where I am the Seller
     yield* _client
         .from('offers')
         .stream(primaryKey: ['id'])
@@ -239,16 +240,16 @@ class SupabaseService {
     }
   }
 
-  Future<bool> isAdmin() async {
-    final user = _client.auth.currentUser;
-    if (user == null) return false;
+  // 13. REPORT ITEM
+  Future<void> reportItem(String itemId, String reason) async {
+    final user = await _authService.currentUser;
+    if (user == null) throw AppException('Not authenticated', code: 'AUTH_REQUIRED');
 
-    final profile = await _client
-        .from('users')
-        .select('is_admin')
-        .eq('id', user.id)
-        .single();
-
-    return profile['is_admin'] == true;
+    await _client.from('reports').insert({
+      'reporter_id': user.id,
+      'item_id': itemId,
+      'reason': reason,
+      'status': 'pending'
+    });
   }
 }

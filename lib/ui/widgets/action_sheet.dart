@@ -54,7 +54,12 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
                     Text(widget.item.title, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                     Text("${widget.item.price} DZD", style: const TextStyle(color: Color(0xFF00E676), fontSize: 14, fontWeight: FontWeight.bold)),
                   ],
-                )
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.flag, color: Colors.red),
+                  onPressed: () => _showReportDialog(),
+                ),
               ],
             ),
           ),
@@ -119,9 +124,12 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("💸 Cash Offer Sent!")));
                 }
-              } on AppException catch (e) {
+              } catch (e) {
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("❌ ${e.message}")));
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to send offer: $e'), backgroundColor: Colors.red),
+                  );
                 }
               }
             },
@@ -153,10 +161,15 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
             child: FutureBuilder<List<Item>>(
               future: service.getMyInventory(),
               builder: (context, snapshot) {
-                 if (!snapshot.hasData || snapshot.data!.isEmpty) return _emptyGarageWidget();
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.red)),
+                  );
+                }
+                if (!snapshot.hasData || snapshot.data!.isEmpty) return _emptyGarageWidget();
 
-                 final myItems = snapshot.data!;
-                 return ListView.builder(
+                final myItems = snapshot.data!;
+                return ListView.builder(
                   scrollDirection: Axis.horizontal,
                   itemCount: myItems.length,
                   itemBuilder: (ctx, index) {
@@ -205,20 +218,25 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
           const Spacer(),
           ElevatedButton(
             onPressed: () async {
-              if (_selectedSwapItemId == null) return;
+              if (_selectedSwapItemId == null) return; // Validation
 
               try {
                 await service.createOffer(
                   targetItemId: widget.item.id,
                   sellerId: widget.item.ownerId,
-                  cashAmount: _hybridCashAmount.toInt(),
-                  offeredItemId: _selectedSwapItemId
+                  cashAmount: _hybridCashAmount.toInt(), // Pass the hybrid cash
+                  offeredItemId: _selectedSwapItemId,
                 );
-                if(mounted) Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🚀 Hybrid Offer Sent!")));
-              } on AppException catch (e) {
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("❌ ${e.message}")));
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🚀 Hybrid Offer Sent!")));
+                }
+              } catch (e) {
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to send offer: $e'), backgroundColor: Colors.red),
+                  );
                 }
               }
             },
@@ -239,6 +257,56 @@ class _ActionSheetState extends State<ActionSheet> with SingleTickerProviderStat
        width: double.infinity,
        decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(10)),
        child: const Center(child: Text("Empty Garage. Upload items first!", style: TextStyle(color: Colors.grey)))
+    );
+  }
+
+  void _showReportDialog() {
+    final reasonController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text('Report Item', style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: reasonController,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: 'Enter reason for reporting',
+            hintStyle: TextStyle(color: Colors.grey),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (reasonController.text.trim().isEmpty) return;
+              final service = SupabaseService();
+              try {
+                await service.reportItem(widget.item.id, reasonController.text.trim());
+                if (mounted) {
+                  Navigator.pop(context); // Close dialog
+                  Navigator.pop(context); // Close action sheet
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Report submitted. Thank you for your feedback.')),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to submit report: $e'), backgroundColor: Colors.red),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Submit Report'),
+          ),
+        ],
+      ),
     );
   }
 }
