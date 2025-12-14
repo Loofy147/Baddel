@@ -1,3 +1,4 @@
+import 'package:baddel/core/services/error_handler.dart';
 import 'package:baddel/core/services/logger.dart';
 import 'package:baddel/core/services/supabase_service.dart';
 import 'package:baddel/core/validators/input_validator.dart';
@@ -7,6 +8,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:path_provider/path_provider.dart';
 
 class UploadScreen extends StatefulWidget {
   const UploadScreen({super.key});
@@ -33,29 +36,47 @@ class _UploadScreenState extends State<UploadScreen> {
   bool _acceptsSwaps = true;
   bool _isUploading = false;
 
-  // New state variables for multi-photo upload
   final List<File> _imageFiles = [];
   int _primaryImageIndex = 0;
   final int _maxPhotos = 5;
 
+  Future<File?> _compressImage(File file) async {
+    try {
+      final dir = await getTemporaryDirectory();
+      final targetPath = '${dir.absolute.path}/${DateTime.now().millisecondsSinceEpoch}.jpg';
 
-  //
-  // New Methods for multi-photo handling
-  //
+      final result = await FlutterImageCompress.compressAndGetFile(
+        file.absolute.path,
+        targetPath,
+        quality: 80,
+        minWidth: 1024,
+        minHeight: 1024,
+      );
+
+      return result != null ? File(result.path) : null;
+    } catch (e) {
+      Logger.error("Image Compression Error", e);
+      return null;
+    }
+  }
+
   Future<void> _pickImages() async {
     final picker = ImagePicker();
     final pickedFiles = await picker.pickMultiImage();
 
     if (pickedFiles.isNotEmpty) {
-      setState(() {
-        for (var file in pickedFiles) {
-          if (_imageFiles.length < _maxPhotos) {
-            _imageFiles.add(File(file.path));
-          } else {
-            break;
+      for (var file in pickedFiles) {
+        if (_imageFiles.length < _maxPhotos) {
+          final compressedFile = await _compressImage(File(file.path));
+          if (compressedFile != null) {
+            setState(() {
+              _imageFiles.add(compressedFile);
+            });
           }
+        } else {
+          break;
         }
-      });
+      }
     }
   }
 
@@ -66,9 +87,12 @@ class _UploadScreenState extends State<UploadScreen> {
     final pickedFile = await picker.pickImage(source: ImageSource.camera);
 
     if (pickedFile != null) {
-      setState(() {
-        _imageFiles.add(File(pickedFile.path));
-      });
+      final compressedFile = await _compressImage(File(pickedFile.path));
+      if (compressedFile != null) {
+        setState(() {
+          _imageFiles.add(compressedFile);
+        });
+      }
     }
   }
 
@@ -107,7 +131,6 @@ class _UploadScreenState extends State<UploadScreen> {
       setState(() => _isUploading = true);
 
       try {
-        // GET LOCATION
         Position? position;
         try {
           LocationPermission permission = await Geolocator.checkPermission();
@@ -126,30 +149,19 @@ class _UploadScreenState extends State<UploadScreen> {
 
         final service = SupabaseService();
 
-        // UPLOAD ALL IMAGES
-        List<String> imageUrls = [];
+        final List<Future<String>> uploadTasks = [];
         for (var imageFile in _imageFiles) {
-          final imageUrl = await service.uploadImage(imageFile);
-          if (imageUrl != null) {
-            imageUrls.add(imageUrl);
-          }
+          uploadTasks.add(service.uploadImage(imageFile));
         }
+        final List<String> imageUrls = await Future.wait(uploadTasks);
 
-        if (imageUrls.length != _imageFiles.length) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Image Upload Failed")));
-          return;
-        }
-
-        // Re-order URLs to match primary image selection
         final primaryImageUrl = imageUrls[_primaryImageIndex];
         imageUrls.removeAt(_primaryImageIndex);
         imageUrls.insert(0, primaryImageUrl);
 
-
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Images uploaded, creating listing...")));
 
-        // CREATE DATABASE ENTRY
-        final success = await service.postItem(
+        await service.postItem(
           title: _titleController.text,
           price: int.parse(_priceController.text),
           imageUrls: imageUrls,
@@ -159,12 +171,15 @@ class _UploadScreenState extends State<UploadScreen> {
           longitude: position?.longitude,
         );
 
-        if (success) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Item Live in the Deck!")));
-          Navigator.pop(context);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Database Error. Check Console.")));
-        }
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Item Live in the Deck!")));
+        Navigator.pop(context);
+      } on AppException catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("❌ Error: ${e.message}"),
+            backgroundColor: Colors.red,
+          ),
+        );
       } finally {
         if (mounted) {
           setState(() => _isUploading = false);
@@ -174,7 +189,6 @@ class _UploadScreenState extends State<UploadScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please select at least one image")));
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -192,11 +206,8 @@ class _UploadScreenState extends State<UploadScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. MULTI-PHOTO UPLOADER
               _buildPhotoSection(),
               const SizedBox(height: 24),
-
-              // 2. FORM FIELDS
               TextFormField(
                 controller: _titleController,
                 style: const TextStyle(color: Colors.white),
@@ -204,12 +215,11 @@ class _UploadScreenState extends State<UploadScreen> {
                   labelText: "Title",
                   labelStyle: TextStyle(color: Colors.grey),
                   hintText: "e.g. PlayStation 5",
-                  hintStyle: TextStyle(color: Colors.grey)
+                  hintStyle: TextStyle(color: Colors.grey),
                 ),
                 validator: InputValidator.validateTitle,
               ),
               const SizedBox(height: 20),
-
               TextFormField(
                 controller: _priceController,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -219,12 +229,11 @@ class _UploadScreenState extends State<UploadScreen> {
                   labelText: "Price (DZD)",
                   labelStyle: TextStyle(color: Colors.grey),
                   hintText: "0",
-                  hintStyle: TextStyle(color: Colors.grey)
+                  hintStyle: TextStyle(color: Colors.grey),
                 ),
                 validator: InputValidator.validatePriceString,
               ),
               const SizedBox(height: 20),
-
               DropdownButtonFormField<String>(
                 value: _selectedCategory,
                 items: _categories.map((String category) {
@@ -249,8 +258,6 @@ class _UploadScreenState extends State<UploadScreen> {
                 dropdownColor: Colors.grey[900],
               ),
               const SizedBox(height: 24),
-
-              // 3. SWAP TOGGLE
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(color: Colors.grey[900], borderRadius: BorderRadius.circular(12)),
@@ -288,10 +295,7 @@ class _UploadScreenState extends State<UploadScreen> {
                   ],
                 ),
               ),
-
               const SizedBox(height: 24),
-
-              // 4. SUBMIT BUTTON
               SizedBox(
                 width: double.infinity,
                 height: 56,
@@ -364,8 +368,6 @@ class _UploadScreenState extends State<UploadScreen> {
           ),
         ),
         const SizedBox(height: 16),
-
-        // Image Grid
         ReorderableListView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -395,7 +397,6 @@ class _UploadScreenState extends State<UploadScreen> {
       margin: const EdgeInsets.only(bottom: 12),
       child: Stack(
         children: [
-          // Image
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: Image.file(
@@ -405,8 +406,6 @@ class _UploadScreenState extends State<UploadScreen> {
               fit: BoxFit.cover,
             ),
           ),
-
-          // Primary badge
           if (isPrimary)
             Positioned(
               top: 8,
@@ -437,8 +436,6 @@ class _UploadScreenState extends State<UploadScreen> {
                 ),
               ),
             ),
-
-          // Actions
           Positioned(
             top: 8,
             right: 8,
@@ -459,8 +456,6 @@ class _UploadScreenState extends State<UploadScreen> {
               ],
             ),
           ),
-
-          // Reorder handle
           Positioned(
             bottom: 8,
             right: 8,
