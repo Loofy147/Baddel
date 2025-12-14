@@ -3,6 +3,7 @@ import 'package:baddel/core/services/auth_service.dart';
 import 'package:baddel/core/services/supabase_service.dart';
 import 'package:baddel/core/models/item_model.dart';
 import 'package:baddel/ui/screens/admin/analytics_dashboard.dart';
+import 'package:baddel/ui/screens/garage/upload_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -65,6 +66,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           if (_isAdmin)
             IconButton(
               icon: const Icon(Icons.analytics, color: Colors.amber),
+              tooltip: 'View Analytics',
               onPressed: () {
                 Navigator.push(
                   context,
@@ -72,7 +74,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 );
               },
             ),
-          IconButton(icon: const Icon(Icons.logout, color: Colors.red), onPressed: _logout)
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.red),
+            tooltip: 'Logout',
+            onPressed: _logout,
+          )
         ],
       ),
       body: SingleChildScrollView(
@@ -99,7 +105,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             // 3. INVENTORY GRID
             _myItems.isEmpty
-              ? const Padding(padding: EdgeInsets.all(50), child: Text("Garage Empty", style: TextStyle(color: Colors.grey)))
+              ? Container(
+                  padding: const EdgeInsets.symmetric(vertical: 50),
+                  alignment: Alignment.center,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.car_repair_outlined, color: Colors.grey, size: 60),
+                      const SizedBox(height: 10),
+                      const Text("Your garage is empty.", style: TextStyle(color: Colors.grey, fontSize: 16)),
+                      const SizedBox(height: 20),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2962FF),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const UploadScreen()),
+                          );
+                        },
+                        child: const Text('Add Your First Item'),
+                      ),
+                    ],
+                  ),
+                )
               : GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
