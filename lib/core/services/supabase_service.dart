@@ -11,6 +11,14 @@ class SupabaseService {
 
   SupabaseService(this._client, this._authService);
 
+  Future<String> _getCurrentUserId() async {
+    final user = await _authService.currentUser;
+    if (user == null) {
+      throw AppException('User not authenticated. Please log in.', code: 'AUTH_REQUIRED');
+    }
+    return user.id;
+  }
+
   // 1. GET THE FEED (Fetch Items)
   Future<List<Item>> getFeedItems() async {
     try {
@@ -27,9 +35,6 @@ class SupabaseService {
   }
 
   Future<List<Item>> getNearbyItems({required double lat, required double lng, required int radiusInMeters}) async {
-    if (radiusInMeters < 100 || radiusInMeters > 100000) {
-      throw ArgumentError('Radius must be between 100m and 100km');
-    }
     try {
       final response = await _client.rpc('get_items_nearby', params: {
         'lat': lat,
@@ -74,12 +79,7 @@ class SupabaseService {
     double? longitude,
   }) async {
     try {
-      final user = await _authService.currentUser;
-      if (user == null) {
-        throw AppException('User not authenticated. Please log in.', code: 'AUTH_REQUIRED');
-      }
-      final userId = user.id;
-
+      final userId = await _getCurrentUserId();
       final lat = latitude != null ? (latitude * 1000).round() / 1000 : 36.7525;
       final lng = longitude != null ? (longitude * 1000).round() / 1000 : 3.0588;
       final locationString = 'POINT($lng $lat)';
@@ -104,10 +104,7 @@ class SupabaseService {
   // 4. GET MY GARAGE (Items owned by current user)
   Future<List<Item>> getMyInventory() async {
     try {
-      final user = await _authService.currentUser;
-      if (user == null) return [];
-      final userId = user.id;
-
+      final userId = await _getCurrentUserId();
       final response = await _client
           .from('items')
           .select()
@@ -128,10 +125,7 @@ class SupabaseService {
     String? offeredItemId,
   }) async {
     try {
-      final user = await _authService.currentUser;
-      if (user == null) throw AppException('Not authenticated', code: 'AUTH_REQUIRED');
-      final myId = user.id;
-
+      final myId = await _getCurrentUserId();
       String type = 'cash_only';
       if (offeredItemId != null && cashAmount > 0) type = 'hybrid';
       if (offeredItemId != null && cashAmount == 0) type = 'swap_pure';
@@ -152,13 +146,7 @@ class SupabaseService {
 
   // 6. GET MY OFFERS (Simple Version)
   Stream<List<Map<String, dynamic>>> getOffersStream() async* {
-    final user = await _authService.currentUser;
-    if (user == null) {
-      yield [];
-      return;
-    }
-    final myId = user.id;
-
+    final myId = await _getCurrentUserId();
     // Fetch offers where I am the Seller
     yield* _client
         .from('offers')
@@ -169,9 +157,13 @@ class SupabaseService {
 
   // 8. SEND MESSAGE
   Future<void> sendMessage(String offerId, String content) async {
-    final user = await _authService.currentUser;
-    if (user == null) return;
-    final myId = user.id;
+    final myId = await _getCurrentUserId();
+
+    // Authorization check
+    final offer = await _client.from('offers').select('buyer_id, seller_id').eq('id', offerId).single();
+    if (offer['buyer_id'] != myId && offer['seller_id'] != myId) {
+      throw AppException('You are not a part of this deal.', code: 'UNAUTHORIZED');
+    }
 
     await _client.from('messages').insert({
       'offer_id': offerId,
@@ -191,11 +183,9 @@ class SupabaseService {
 
   // 10. ACCEPT DEAL (Change status to allow chatting)
   Future<void> acceptOffer(String offerId) async {
-    final user = await _authService.currentUser;
-    if (user == null) throw AppException('Not authenticated', code: 'AUTH_REQUIRED');
-
+    final userId = await _getCurrentUserId();
     final offer = await _client.from('offers').select('seller_id').eq('id', offerId).single();
-    if (offer['seller_id'] != user.id) {
+    if (offer['seller_id'] != userId) {
       throw AppException('Unauthorized to accept this offer', code: 'UNAUTHORIZED');
     }
 
@@ -204,10 +194,7 @@ class SupabaseService {
 
   // 11. GET USER PROFILE (Stats & Badges)
   Future<Map<String, dynamic>> getUserProfile() async {
-    final user = await _authService.currentUser;
-    if (user == null) throw AppException('Not authenticated', code: 'AUTH_REQUIRED');
-    final userId = user.id;
-
+    final userId = await _getCurrentUserId();
     try {
       final userProfile = await _client.from('users').select().eq('id', userId).single();
       final items = await _client.from('items').select('status').eq('owner_id', userId);
@@ -226,10 +213,7 @@ class SupabaseService {
 
   // 12. DELETE ITEM (or Mark Sold)
   Future<void> deleteItem(String itemId) async {
-    final user = await _authService.currentUser;
-    if (user == null) throw AppException('Not authenticated', code: 'AUTH_REQUIRED');
-    final userId = user.id;
-
+    final userId = await _getCurrentUserId();
     final result = await _client
       .from('items')
       .update({'status': 'deleted'})
@@ -244,12 +228,10 @@ class SupabaseService {
 
   // 13. REPORT ITEM
   Future<void> reportItem({required String itemId, required String reason, String? notes}) async {
-    final user = await _authService.currentUser;
-    if (user == null) throw AppException('Not authenticated', code: 'AUTH_REQUIRED');
-
+    final userId = await _getCurrentUserId();
     try {
       await _client.from('reports').insert({
-        'reporter_id': user.id,
+        'reporter_id': userId,
         'reported_item_id': itemId,
         'reason': reason,
         'notes': notes,
@@ -261,15 +243,5 @@ class SupabaseService {
       }
       throw AppException.fromSupabaseError(e);
     }
-  Future<void> reportItem(String itemId, String reason) async {
-    final user = await _authService.currentUser;
-    if (user == null) throw AppException('Not authenticated', code: 'AUTH_REQUIRED');
-
-    await _client.from('reports').insert({
-      'reporter_id': user.id,
-      'item_id': itemId,
-      'reason': reason,
-      'status': 'pending'
-    });
   }
 }
