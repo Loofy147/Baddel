@@ -302,75 +302,15 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
 
               // 4. SUBMIT BUTTON
               ElevatedButton(
-                onPressed: _isUploading
-                    ? null
-                    : () async {
-                        if (_formKey.currentState!.validate() && _imageFile != null) {
-                          setState(() => _isUploading = true);
-
-                          try {
-                            // 2. GET LOCATION
-                            Position? position;
-                            try {
-                              LocationPermission permission = await Geolocator.checkPermission();
-                              if (permission == LocationPermission.denied) {
-                                permission = await Geolocator.requestPermission();
-                              }
-
-                              if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
-                                position = await Geolocator.getCurrentPosition();
-                              }
-                            } catch (e) {
-                              print("GPS Error: $e"); // Fallback will happen in service
-                            }
-
-                            // 3. Show Loading
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🚀 Uploading to Supabase...")));
-
-                            final service = SupabaseService();
-
-                            // 4. Upload Image
-                            final imageUrl = await service.uploadImage(_imageFile!);
-
-                            if (imageUrl == null) {
-                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Image Upload Failed")));
-                              return;
-                            }
-
-                            // 5. Create Database Entry with Geolocation
-                            await service.postItem(
-                              title: _titleController.text,
-                              price: int.parse(_priceController.text),
-                              imageUrl: imageUrl,
-                              acceptsSwaps: _acceptsSwaps,
-                              latitude: position?.latitude, // NEW
-                              longitude: position?.longitude, // NEW
-                            );
-
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Item Live in the Deck!")));
-                              Navigator.pop(context); // Close screen
-                            }
-                          } catch (e) {
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Error posting item: $e'), backgroundColor: Colors.red),
-                              );
-                            }
-                          } finally {
-                            if (mounted) {
-                              setState(() => _isUploading = false);
-                            }
-                          }
-                        } else if (_imageFile == null) {
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please select an image")));
-                        }
-                      },
+                onPressed: _isUploading ? null : _submitListing,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF2962FF),
                   foregroundColor: Colors.white,
                   minimumSize: const Size(double.infinity, 50),
                 ),
+                child: _isUploading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text('SUBMIT LISTING', style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             ],
           ),
@@ -480,39 +420,6 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
-
-            // 2. FORM FIELDS
-            const Text("What are you selling?", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            TextField(
-              controller: _titleController,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(hintText: "e.g. PlayStation 5", hintStyle: TextStyle(color: Colors.grey)),
-            ),
-            const SizedBox(height: 20),
-
-            const Text("Price (DZD)", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            TextField(
-              controller: _priceController,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              style: const TextStyle(color: Color(0xFF00E676), fontWeight: FontWeight.bold, fontSize: 18),
-              decoration: const InputDecoration(hintText: "0", hintStyle: TextStyle(color: Colors.grey)),
-            ),
-            const SizedBox(height: 20),
-
-            // 3. SWAP TOGGLE
-            Container(
-              padding: const EdgeInsets.all(15),
-              decoration: BoxDecoration(color: Colors.grey[900], borderRadius: BorderRadius.circular(10)),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text("Accept Swaps?", style: TextStyle(color: Colors.white, fontSize: 16)),
-                  Switch(
-                    value: _acceptsSwaps,
-                    activeColor: const Color(0xFFBB86FC),
-                    onChanged: (val) => setState(() => _acceptsSwaps = val),
           Positioned(
             top: 8,
             right: 8,
