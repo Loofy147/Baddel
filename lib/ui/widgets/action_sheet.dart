@@ -4,7 +4,6 @@ import 'package:baddel/core/services/error_handler.dart';
 import 'package:baddel/core/services/supabase_service.dart';
 import 'package:baddel/ui/screens/garage/upload_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:baddel/core/providers.dart';
 import 'package:baddel/core/models/item_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -151,7 +150,7 @@ class _ActionSheetState extends ConsumerState<ActionSheet> with SingleTickerProv
               return ElevatedButton(
                 onPressed: (isValid && !_isSubmitting) ? () async {
                   setState(() => _isSubmitting = true);
-                  final success = await service.createOffer(
+                  await service.createOffer(
                     targetItemId: widget.item.id,
                     sellerId: widget.item.ownerId,
                     cashAmount: int.tryParse(_cashController.text) ?? 0,
@@ -159,7 +158,7 @@ class _ActionSheetState extends ConsumerState<ActionSheet> with SingleTickerProv
 
                   if (mounted) {
                     Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(success ? "💸 Cash Offer Sent!" : "❌ Failed to send offer")));
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("💸 Cash Offer Sent!")));
                   }
                   // No need to reset _isSubmitting as the sheet is dismissed.
                 } : null,
@@ -294,6 +293,88 @@ class _ActionSheetState extends ConsumerState<ActionSheet> with SingleTickerProv
           ),
         ),
       ),
+    );
+  }
+
+  void _showReportDialog(BuildContext context) {
+    String? selectedReason;
+    final notesController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF2C2C2C),
+          title: const Text('Report Item', style: TextStyle(color: Colors.white)),
+          content: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setState) {
+              return SingleChildScrollView(
+                child: ListBody(
+                  children: <Widget>[
+                    const Text('Why are you reporting this item?', style: TextStyle(color: Colors.grey)),
+                    ...['spam', 'inappropriate', 'fraud', 'other'].map((String reason) {
+                      return RadioListTile<String>(
+                        title: Text(reason, style: const TextStyle(color: Colors.white)),
+                        value: reason,
+                        groupValue: selectedReason,
+                        onChanged: (String? value) {
+                          setState(() {
+                            selectedReason = value;
+                          });
+                        },
+                        activeColor: const Color(0xFFBB86FC),
+                      );
+                    }),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: notesController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: const InputDecoration(
+                        hintText: 'Optional notes...',
+                        hintStyle: TextStyle(color: Colors.grey),
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 2,
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Submit Report', style: TextStyle(color: Colors.white)),
+              onPressed: () async {
+                if (selectedReason != null) {
+                  try {
+                    await ref.read(supabaseServiceProvider).reportItem(
+                      itemId: widget.item.id,
+                      reason: selectedReason!,
+                      notes: notesController.text.isNotEmpty ? notesController.text : null,
+                    );
+                    Navigator.of(dialogContext).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('✅ Report submitted. Thank you!')),
+                    );
+                  } catch (e) {
+                    Navigator.of(dialogContext).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('❌ Error: ${e.toString()}')),
+                    );
+                  }
+                }
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 
