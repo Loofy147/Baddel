@@ -7,7 +7,7 @@ class AuthService {
   // 1. GET CURRENT USER
   Future<User?> get currentUser async {
     final session = _supabase.auth.currentSession;
-    if (session == null || session.expiresAt?.isBefore(DateTime.now()) == true) {
+    if (session == null || (session.expiresAt != null && DateTime.fromMillisecondsSinceEpoch(session.expiresAt! * 1000).isBefore(DateTime.now()))) {
       await _supabase.auth.refreshSession();
     }
     return _supabase.auth.currentUser;

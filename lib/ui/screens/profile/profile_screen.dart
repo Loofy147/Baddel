@@ -50,13 +50,13 @@ class ProfileScreen extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(child: Text('Error: $err')),
         data: (profileData) {
-          final score = profileData['reputation_score'] ?? 50;
-          final phone = profileData['phone'] ?? "No Phone";
+          final score = profileData?['reputation_score'] ?? 50;
+          final phone = profileData?['phone'] ?? "No Phone";
 
           return SingleChildScrollView(
             child: Column(
               children: [
-                _buildHeroStats(score, phone, profileData),
+                _buildHeroStats(score, phone, profileData ?? {}),
                 const SizedBox(height: 20),
                 inventoryAsyncValue.when(
                   loading: () => const Center(child: CircularProgressIndicator()),
