@@ -478,6 +478,39 @@ class _UploadScreenState extends State<UploadScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 20),
+
+            // 2. FORM FIELDS
+            const Text("What are you selling?", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            TextField(
+              controller: _titleController,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(hintText: "e.g. PlayStation 5", hintStyle: TextStyle(color: Colors.grey)),
+            ),
+            const SizedBox(height: 20),
+
+            const Text("Price (DZD)", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            TextField(
+              controller: _priceController,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              style: const TextStyle(color: Color(0xFF00E676), fontWeight: FontWeight.bold, fontSize: 18),
+              decoration: const InputDecoration(hintText: "0", hintStyle: TextStyle(color: Colors.grey)),
+            ),
+            const SizedBox(height: 20),
+
+            // 3. SWAP TOGGLE
+            Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(color: Colors.grey[900], borderRadius: BorderRadius.circular(10)),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text("Accept Swaps?", style: TextStyle(color: Colors.white, fontSize: 16)),
+                  Switch(
+                    value: _acceptsSwaps,
+                    activeColor: const Color(0xFFBB86FC),
+                    onChanged: (val) => setState(() => _acceptsSwaps = val),
           Positioned(
             top: 8,
             right: 8,

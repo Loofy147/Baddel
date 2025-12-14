@@ -77,6 +77,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.red),
+            onPressed: _logout,
+            tooltip: 'Logout',
             onPressed: () => _logout(context, ref),
           )
         ],
@@ -299,6 +301,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Positioned(
           top: 5, right: 5,
           child: GestureDetector(
+            onTap: () => _showDeleteConfirmation(item),
             onTap: () async {
               await ref.read(supabaseServiceProvider).deleteItem(item.id);
               ref.refresh(myInventoryProvider);
@@ -343,6 +346,52 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  void _showDeleteConfirmation(Item item) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          backgroundColor: Colors.grey[900],
+          title: const Text('Delete Item?', style: TextStyle(color: Colors.white)),
+          content: Text('Are you sure you want to delete "${item.title}"? This cannot be undone.', style: const TextStyle(color: Colors.grey)),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel', style: TextStyle(color: Colors.white)),
+              onPressed: () => Navigator.of(dialogContext).pop(), // Close the dialog
+            ),
+            TextButton(
+              child: const Text('DELETE', style: TextStyle(color: Colors.red)),
+              onPressed: () {
+                Navigator.of(dialogContext).pop(); // Close the dialog
+
+                // --- OPTIMISTIC UI UPDATE ---
+                final itemIndex = _myItems.indexWhere((i) => i.id == item.id);
+                if (itemIndex == -1) return; // Should not happen
+
+                setState(() {
+                  _myItems.removeAt(itemIndex);
+                });
+
+                // Background deletion and error handling
+                _supabaseService.deleteItem(item.id).then((success) {
+                  if (!success && mounted) {
+                    // IF DELETION FAILS, RE-INSERT ITEM AND SHOW ERROR
+                    setState(() {
+                      _myItems.insert(itemIndex, item);
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        backgroundColor: Colors.red,
+                        content: Text('Error deleting "${item.title}". Please try again.'),
+                      ),
+                    );
+                  }
+                });
+              },
+            ),
+          ],
+        );
+      },
   void _showBoostDialog(Item item) {
     showDialog(
       context: context,

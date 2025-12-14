@@ -2,6 +2,7 @@ import 'package.baddel/core/providers.dart';
 import 'package:baddel/core/services/auth_service.dart';
 import 'package:baddel/core/services/error_handler.dart';
 import 'package:baddel/core/services/supabase_service.dart';
+import 'package:baddel/ui/screens/garage/upload_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:baddel/core/models/item_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,12 +20,27 @@ class _ActionSheetState extends ConsumerState<ActionSheet> with SingleTickerProv
   late TabController _tabController;
   final TextEditingController _cashController = TextEditingController();
   String? _selectedSwapItemId;
+  double _hybridCashAmount = 0; // The extra cash added
+  bool _isSubmitting = false;
+
+  final SupabaseService _service = SupabaseService();
+  late Future<List<Item>> _inventoryFuture;
   double _hybridCashAmount = 0;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: widget.item.acceptsSwaps ? 2 : 1, vsync: this);
+    if (widget.item.acceptsSwaps) {
+      _inventoryFuture = _service.getMyInventory();
+      _inventoryFuture.then((inventory) {
+        if (inventory.isNotEmpty && mounted) {
+          setState(() {
+            _selectedSwapItemId = inventory.first.id;
+          });
+        }
+      });
+    }
   }
 
   @override
@@ -42,6 +58,20 @@ class _ActionSheetState extends ConsumerState<ActionSheet> with SingleTickerProv
             width: 40, height: 4,
             decoration: BoxDecoration(color: Colors.grey, borderRadius: BorderRadius.circular(2)),
           ),
+
+          // 2. HEADER
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16.0),
+            padding: const EdgeInsets.all(12.0),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.grey[900]!, Colors.grey[850]!],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(15.0),
+              border: Border.all(color: Colors.grey[800]!),
+            ),
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Row(
@@ -51,6 +81,26 @@ class _ActionSheetState extends ConsumerState<ActionSheet> with SingleTickerProv
                   child: Image.network(widget.item.imageUrl, width: 60, height: 60, fit: BoxFit.cover),
                 ),
                 const SizedBox(width: 15),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text("Make an Offer for", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      Text(
+                        widget.item.title,
+                        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text("${widget.item.price} DZD", style: const TextStyle(color: Color(0xFF00E676), fontSize: 14, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                )
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // 3. TABS
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -116,6 +166,34 @@ class _ActionSheetState extends ConsumerState<ActionSheet> with SingleTickerProv
             ),
           ),
           const Spacer(),
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _cashController,
+            builder: (context, value, child) {
+              final isValid = (int.tryParse(value.text) ?? 0) > 0;
+              return ElevatedButton(
+                onPressed: (isValid && !_isSubmitting) ? () async {
+                  setState(() => _isSubmitting = true);
+                  final success = await service.createOffer(
+                    targetItemId: widget.item.id,
+                    sellerId: widget.item.ownerId,
+                    cashAmount: int.tryParse(_cashController.text) ?? 0,
+                  );
+
+                  if (mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(success ? "💸 Cash Offer Sent!" : "❌ Failed to send offer")));
+                  }
+                  // No need to reset _isSubmitting as the sheet is dismissed.
+                } : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF00E676),
+                  foregroundColor: Colors.black,
+                  minimumSize: const Size(double.infinity, 50),
+                ),
+                child: _isSubmitting
+                    ? const CircularProgressIndicator(color: Colors.black)
+                    : const Text("SEND CASH OFFER", style: TextStyle(fontWeight: FontWeight.bold)),
+              );
           ElevatedButton(
             onPressed: () async {
               try {
@@ -140,13 +218,7 @@ class _ActionSheetState extends ConsumerState<ActionSheet> with SingleTickerProv
                 }
               }
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF00E676),
-              foregroundColor: Colors.black,
-              minimumSize: const Size(double.infinity, 50),
-            ),
-            child: const Text("SEND CASH OFFER", style: TextStyle(fontWeight: FontWeight.bold)),
-          )
+          ),
         ],
       ),
     );
@@ -174,8 +246,14 @@ class _ActionSheetState extends ConsumerState<ActionSheet> with SingleTickerProv
               data: (myItems) {
                 if (myItems.isEmpty) return _emptyGarageWidget();
             child: FutureBuilder<List<Item>>(
-              future: service.getMyInventory(),
+              future: _inventoryFuture,
               builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return _emptyGarageWidget();
+                }
                 if (snapshot.hasError) {
                   return Center(
                     child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.red)),
@@ -196,14 +274,10 @@ class _ActionSheetState extends ConsumerState<ActionSheet> with SingleTickerProv
                         width: 120,
                         margin: const EdgeInsets.only(right: 10),
                         decoration: BoxDecoration(
-                          color: isSelected ? const Color(0xFFBB86FC).withOpacity(0.2) : Colors.grey[900],
-                          border: Border.all(
-                            color: isSelected ? const Color(0xFFBB86FC) : Colors.transparent,
-                            width: 2
-                          ),
-                          borderRadius: BorderRadius.circular(10),
-                          image: DecorationImage(image: NetworkImage(item.imageUrl), fit: BoxFit.cover, colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.5), BlendMode.darken))
-                        ),
+                            color: isSelected ? const Color(0xFFBB86FC).withOpacity(0.2) : Colors.grey[900],
+                            border: Border.all(color: isSelected ? const Color(0xFFBB86FC) : Colors.transparent, width: 2),
+                            borderRadius: BorderRadius.circular(10),
+                            image: DecorationImage(image: NetworkImage(item.imageUrl), fit: BoxFit.cover, colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.5), BlendMode.darken))),
                         child: Center(child: Text(item.title, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 11))),
                       ),
                     );
@@ -232,15 +306,23 @@ class _ActionSheetState extends ConsumerState<ActionSheet> with SingleTickerProv
           ),
           const Spacer(),
           ElevatedButton(
+            onPressed: (_selectedSwapItemId != null && !_isSubmitting) ? () async {
+              setState(() => _isSubmitting = true);
+              await service.createOffer(
             onPressed: () async {
               if (_selectedSwapItemId == null) return; // Validation
 
               await ref.read(supabaseServiceProvider).createOffer(
                 targetItemId: widget.item.id,
                 sellerId: widget.item.ownerId,
-                cashAmount: _hybridCashAmount.toInt(), // Pass the hybrid cash
-                offeredItemId: _selectedSwapItemId
+                cashAmount: _hybridCashAmount.toInt(),
+                offeredItemId: _selectedSwapItemId,
               );
+              if (mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🚀 Hybrid Offer Sent!")));
+              }
+            } : null,
               if(mounted) Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🚀 Hybrid Offer Sent!")));
               try {
@@ -268,7 +350,9 @@ class _ActionSheetState extends ConsumerState<ActionSheet> with SingleTickerProv
               foregroundColor: Colors.black,
               minimumSize: const Size(double.infinity, 50),
             ),
-            child: const Text("SEND PROPOSAL", style: TextStyle(fontWeight: FontWeight.bold)),
+            child: _isSubmitting
+                ? const CircularProgressIndicator(color: Colors.black)
+                : const Text("SEND PROPOSAL", style: TextStyle(fontWeight: FontWeight.bold)),
           )
         ],
       ),
@@ -276,10 +360,28 @@ class _ActionSheetState extends ConsumerState<ActionSheet> with SingleTickerProv
   }
 
   Widget _emptyGarageWidget() {
-    return Container(
-       width: double.infinity,
-       decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(10)),
-       child: const Center(child: Text("Empty Garage. Upload items first!", style: TextStyle(color: Colors.grey)))
+    return InkWell(
+      onTap: () {
+        Navigator.pop(context); // Close the sheet first
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const UploadScreen()));
+      },
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey[800]!),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.add_circle_outline, color: Colors.grey, size: 30),
+              SizedBox(height: 8),
+              Text("Empty Garage\nTap to upload an item", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
