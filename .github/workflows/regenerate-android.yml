@@ -45,19 +45,16 @@ jobs:
           ls -la android/app || true
 
       - name: Commit and push regenerated android/ to new branch
-        env:
-          BRANCH: android-regenerate-$(date -u +"%Y%m%dT%H%M%SZ")
         run: |
+          BRANCH="android-regenerate-$(date -u +'%Y%m%dT%H%M%SZ')"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -b $BRANCH
-          # Add only files in android/ to avoid unrelated changes
+          git checkout -b "$BRANCH"
           git add android || true
-          # check if there are changes to commit
           if git diff --staged --quiet; then
             echo "No changes detected in android/, nothing to commit."
             exit 0
           fi
           git commit -m "chore(android): regenerate android folder via flutter create"
-          git push --set-upstream origin $BRANCH
+          git push --set-upstream origin "$BRANCH"
           echo "Pushed branch: $BRANCH"
