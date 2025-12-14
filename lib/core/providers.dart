@@ -2,7 +2,7 @@ import 'package:baddel/core/models/item_model.dart';
 import 'package:baddel/core/services/auth_service.dart';
 import 'package:baddel/core/services/supabase_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide Provider;
 
 // A provider for the SupabaseClient
 final supabaseClientProvider = Provider<SupabaseClient>((ref) {
@@ -33,4 +33,13 @@ final myInventoryProvider = FutureProvider.autoDispose<List<Item>>((ref) async {
 
 final authServiceProvider = Provider<AuthService>((ref) {
   return AuthService();
+});
+
+final isAdminProvider = Provider.autoDispose<bool>((ref) {
+  final profile = ref.watch(userProfileProvider);
+  return profile.when(
+    data: (data) => data?['is_admin'] ?? false,
+    loading: () => false,
+    error: (e, s) => false,
+  );
 });
