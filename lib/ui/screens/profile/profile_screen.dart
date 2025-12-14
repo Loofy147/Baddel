@@ -28,7 +28,7 @@ class ProfileScreen extends ConsumerWidget {
         title: const Text("My Profile"),
         backgroundColor: Colors.black,
         actions: [
-          if (isAdmin.asData?.value == true)
+          if (isAdmin == true)
             IconButton(
               icon: const Icon(Icons.analytics, color: Colors.amber),
               tooltip: 'View Analytics',
