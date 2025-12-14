@@ -90,9 +90,11 @@ class _MainLayoutState extends State<MainLayout> {
         currentIndex: _currentIndex,
         onTap: (index) => setState(() => _currentIndex = index),
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.style), label: "Deck"),
-          BottomNavigationBarItem(icon: Icon(Icons.chat_bubble), label: "Deals"),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
+          BottomNavigationBarItem(icon: const Icon(Icons.style), label: "Deck"),
+          BottomNavigationBarItem(
+              icon: const Icon(Icons.chat_bubble), label: "Deals"),
+          BottomNavigationBarItem(
+              icon: const Icon(Icons.person), label: "Profile"),
         ],
       ),
     );

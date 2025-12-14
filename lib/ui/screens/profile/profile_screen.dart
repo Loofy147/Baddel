@@ -7,60 +7,12 @@ import 'package:baddel/core/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:baddel/ui/screens/admin/analytics_dashboard.dart';
 import 'package:baddel/ui/screens/garage/upload_screen.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
   void _logout(BuildContext context, WidgetRef ref) {
     ref.read(authServiceProvider).signOut();
-  @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
-}
-
-class _ProfileScreenState extends State<ProfileScreen> {
-  final _authService = AuthService();
-  final _supabaseService = SupabaseService();
-
-  Map<String, dynamic>? _profileData;
-  List<Item> _myItems = [];
-  bool _isLoading = true;
-  bool _isAdmin = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadData();
-  }
-
-  Future<void> _loadData() async {
-    try {
-      final profile = await _supabaseService.getUserProfile();
-      final items = await _supabaseService.getMyInventory();
-      final isAdmin = await _supabaseService.isAdmin();
-
-      if (mounted) {
-        setState(() {
-          _profileData = profile;
-          _myItems = items;
-          _isAdmin = isAdmin;
-        });
-      }
-    } on AppException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("❌ ${e.message}")),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  void _logout() {
-    _authService.signOut();
     Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
   }
 
@@ -68,6 +20,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsyncValue = ref.watch(userProfileProvider);
     final inventoryAsyncValue = ref.watch(myInventoryProvider);
+    final isAdmin = ref.watch(isAdminProvider);
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -75,9 +28,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: const Text("My Profile"),
         backgroundColor: Colors.black,
         actions: [
+          if (isAdmin.asData?.value == true)
+            IconButton(
+              icon: const Icon(Icons.analytics, color: Colors.amber),
+              tooltip: 'View Analytics',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AnalyticsDashboard()),
+                );
+              },
+            ),
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.red),
-            onPressed: _logout,
             tooltip: 'Logout',
             onPressed: () => _logout(context, ref),
           )
@@ -87,8 +50,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(child: Text('Error: $err')),
         data: (profileData) {
-          final score = profileData?['reputation_score'] ?? 50;
-          final phone = profileData?['phone'] ?? "No Phone";
+          final score = profileData['reputation_score'] ?? 50;
+          final phone = profileData['phone'] ?? "No Phone";
 
           return SingleChildScrollView(
             child: Column(
@@ -112,7 +75,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       const SizedBox(height: 10),
                       myItems.isEmpty
-                          ? const Padding(padding: EdgeInsets.all(50), child: Text("Garage Empty", style: TextStyle(color: Colors.grey)))
+                          ? _buildEmptyGarage(context)
                           : GridView.builder(
                               shrinkWrap: true,
                               physics: const NeverScrollableScrollPhysics(),
@@ -124,82 +87,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 mainAxisSpacing: 10,
                               ),
                               itemCount: myItems.length,
-                              itemBuilder: (context, index) => _buildManageCard(myItems[index], ref),
+                              itemBuilder: (context, index) => _buildManageCard(context, myItems[index], ref),
                             ),
                     ],
-          if (_isAdmin)
-            IconButton(
-              icon: const Icon(Icons.analytics, color: Colors.amber),
-              tooltip: 'View Analytics',
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const AnalyticsDashboard()),
-                );
-              },
-            ),
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.red),
-            tooltip: 'Logout',
-            onPressed: _logout,
-          )
-        ],
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildHeroStats(score, phone),
-            const SizedBox(height: 20),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text("MY ACTIVE GARAGE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
-                  Text("${_myItems.length} Items", style: const TextStyle(color: Colors.grey)),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
-            _myItems.isEmpty
-              ? Container(
-                  padding: const EdgeInsets.symmetric(vertical: 50),
-                  alignment: Alignment.center,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.car_repair_outlined, color: Colors.grey, size: 60),
-                      const SizedBox(height: 10),
-                      const Text("Your garage is empty.", style: TextStyle(color: Colors.grey, fontSize: 16)),
-                      const SizedBox(height: 20),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2962FF),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const UploadScreen()),
-                          );
-                        },
-                        child: const Text('Add Your First Item'),
-                      ),
-                    ],
-                  ),
-                )
-              : GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  padding: const EdgeInsets.all(15),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    childAspectRatio: 0.8,
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 10,
                   ),
                 ),
               ],
@@ -210,11 +100,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // --- WIDGETS ---
+  Widget _buildEmptyGarage(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 50),
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.car_repair_outlined, color: Colors.grey, size: 60),
+          const SizedBox(height: 10),
+          const Text("Your garage is empty.", style: TextStyle(color: Colors.grey, fontSize: 16)),
+          const SizedBox(height: 20),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2962FF),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const UploadScreen()),
+              );
+            },
+            child: const Text('Add Your First Item'),
+          ),
+        ],
+      ),
+    );
+  }
 
-  Widget _buildHeroStats(int score, String phone, Map<String, dynamic>? profileData) {
-    // Calculate Level based on Score
-  Widget _buildHeroStats(int score, String phone) {
+  Widget _buildHeroStats(int score, String phone, Map<String, dynamic> profileData) {
     String level = "Novice";
     Color color = Colors.grey;
     if (score > 60) { level = "Merchant"; color = Colors.blue; }
@@ -224,7 +142,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       margin: const EdgeInsets.all(20),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [Colors.grey[900]!, Colors.black], begin: Alignment.topLeft, end: Alignment.bottomRight),
+        gradient: const LinearGradient(colors: [Colors.black, Colors.black87], begin: Alignment.topLeft, end: Alignment.bottomRight),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.grey[800]!),
       ),
@@ -262,11 +180,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _statItem("Active", "${profileData?['active_items'] ?? 0}"),
-              _statItem("Sold", "${profileData?['sold_items'] ?? 0}"),
-              _statItem("Deals", "0"), // Placeholder for future deals count
-              _statItem("Active", "${_profileData?['active_items'] ?? 0}"),
-              _statItem("Sold", "${_profileData?['sold_items'] ?? 0}"),
+              _statItem("Active", "${profileData['active_items'] ?? 0}"),
+              _statItem("Sold", "${profileData['sold_items'] ?? 0}"),
               _statItem("Deals", "0"),
             ],
           )
@@ -284,7 +199,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildManageCard(Item item, WidgetRef ref) {
+  Widget _buildManageCard(BuildContext context, Item item, WidgetRef ref) {
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -301,21 +216,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Positioned(
           top: 5, right: 5,
           child: GestureDetector(
-            onTap: () => _showDeleteConfirmation(item),
-            onTap: () async {
-              await ref.read(supabaseServiceProvider).deleteItem(item.id);
-              ref.refresh(myInventoryProvider);
-              try {
-                await _supabaseService.deleteItem(item.id);
-                _loadData();
-              } on AppException catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("❌ ${e.message}")),
-                  );
-                }
-              }
-            },
+            onTap: () => _showDeleteConfirmation(context, item, ref),
             child: Container(
               padding: const EdgeInsets.all(6),
               decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
@@ -337,7 +238,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               IconButton(
                 icon: const Icon(Icons.bolt, color: Colors.amber),
-                onPressed: () => _showBoostDialog(item),
+                onPressed: () => _showBoostDialog(context, item),
               ),
             ],
           ),
@@ -346,62 +247,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _showDeleteConfirmation(Item item) {
-    showDialog(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          backgroundColor: Colors.grey[900],
-          title: const Text('Delete Item?', style: TextStyle(color: Colors.white)),
-          content: Text('Are you sure you want to delete "${item.title}"? This cannot be undone.', style: const TextStyle(color: Colors.grey)),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('Cancel', style: TextStyle(color: Colors.white)),
-              onPressed: () => Navigator.of(dialogContext).pop(), // Close the dialog
-            ),
-            TextButton(
-              child: const Text('DELETE', style: TextStyle(color: Colors.red)),
-              onPressed: () {
-                Navigator.of(dialogContext).pop(); // Close the dialog
-
-                // --- OPTIMISTIC UI UPDATE ---
-                final itemIndex = _myItems.indexWhere((i) => i.id == item.id);
-                if (itemIndex == -1) return; // Should not happen
-
-                setState(() {
-                  _myItems.removeAt(itemIndex);
-                });
-
-                // Background deletion and error handling
-                _supabaseService.deleteItem(item.id).then((success) {
-                  if (!success && mounted) {
-                    // IF DELETION FAILS, RE-INSERT ITEM AND SHOW ERROR
-                    setState(() {
-                      _myItems.insert(itemIndex, item);
-                    });
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        backgroundColor: Colors.red,
-                        content: Text('Error deleting "${item.title}". Please try again.'),
-                      ),
-                    );
-                  }
-                });
-              },
-            ),
-          ],
-        );
-      },
-  void _showBoostDialog(Item item) {
+  void _showBoostDialog(BuildContext context, Item item) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Colors.grey[900],
-        title: Row(
+        title: const Row(
           children: [
-            const Icon(Icons.bolt, color: Colors.amber),
-            const SizedBox(width: 10),
-            const Text('Boost Listing', style: TextStyle(color: Colors.white)),
+            Icon(Icons.bolt, color: Colors.amber),
+            SizedBox(width: 10),
+            Text('Boost Listing', style: TextStyle(color: Colors.white)),
           ],
         ),
         content: Column(
@@ -412,24 +267,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 20),
             const Text('Choose a boost duration:', style: TextStyle(color: Colors.white)),
             const SizedBox(height: 10),
-            // Placeholder options
-            ListTile(
-              leading: const Icon(Icons.local_fire_department, color: Colors.amber),
-              title: const Text('24 Hours', style: TextStyle(color: Colors.white)),
-              subtitle: Text('100 DZD', style: TextStyle(color: Colors.grey[400])),
-              onTap: () {},
+            const ListTile(
+              leading: Icon(Icons.local_fire_department, color: Colors.amber),
+              title: Text('24 Hours', style: TextStyle(color: Colors.white)),
+              subtitle: Text('100 DZD', style: TextStyle(color: Colors.grey)),
             ),
-            ListTile(
-              leading: const Icon(Icons.local_fire_department, color: Colors.amber),
-              title: const Text('3 Days', style: TextStyle(color: Colors.white)),
-              subtitle: Text('250 DZD', style: TextStyle(color: Colors.grey[400])),
-              onTap: () {},
+            const ListTile(
+              leading: Icon(Icons.local_fire_department, color: Colors.amber),
+              title: Text('3 Days', style: TextStyle(color: Colors.white)),
+              subtitle: Text('250 DZD', style: TextStyle(color: Colors.grey)),
             ),
-            ListTile(
-              leading: const Icon(Icons.local_fire_department, color: Colors.amber),
-              title: const Text('7 Days', style: TextStyle(color: Colors.white)),
-              subtitle: Text('500 DZD', style: TextStyle(color: Colors.grey[400])),
-              onTap: () {},
+            const ListTile(
+              leading: Icon(Icons.local_fire_department, color: Colors.amber),
+              title: Text('7 Days', style: TextStyle(color: Colors.white)),
+              subtitle: Text('500 DZD', style: TextStyle(color: Colors.grey)),
             ),
           ],
         ),
@@ -438,16 +289,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
           ),
-          Tooltip(
+          const Tooltip(
             message: 'Coming Soon: Payment integration is under development',
             child: ElevatedButton(
               onPressed: null, // Disabled
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.grey),
-              child: const Text('Proceed to Payment'),
+              style: ButtonStyle(backgroundColor: MaterialStatePropertyAll(Colors.grey)),
+              child: Text('Proceed to Payment'),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  void _showDeleteConfirmation(BuildContext context, Item item, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          backgroundColor: Colors.grey[900],
+          title: const Text('Delete Item?', style: TextStyle(color: Colors.white)),
+          content: Text('Are you sure you want to delete "${item.title}"? This cannot be undone.', style: const TextStyle(color: Colors.grey)),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel', style: TextStyle(color: Colors.white)),
+              onPressed: () => Navigator.of(dialogContext).pop(),
+            ),
+            TextButton(
+              child: const Text('DELETE', style: TextStyle(color: Colors.red)),
+              onPressed: () async {
+                Navigator.of(dialogContext).pop();
+                try {
+                  await ref.read(supabaseServiceProvider).deleteItem(item.id);
+                  ref.refresh(myInventoryProvider);
+                } on AppException catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("❌ ${e.message}")),
+                  );
+                }
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 }
