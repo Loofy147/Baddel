@@ -10,15 +10,17 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:baddel/core/providers.dart';
 
-class UploadScreen extends StatefulWidget {
+class UploadScreen extends ConsumerStatefulWidget {
   const UploadScreen({super.key});
 
   @override
-  State<UploadScreen> createState() => _UploadScreenState();
+  ConsumerState<UploadScreen> createState() => _UploadScreenState();
 }
 
-class _UploadScreenState extends State<UploadScreen> {
+class _UploadScreenState extends ConsumerState<UploadScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _priceController = TextEditingController();
@@ -147,7 +149,7 @@ class _UploadScreenState extends State<UploadScreen> {
 
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🚀 Uploading images...")));
 
-        final service = SupabaseService();
+        final service = ref.read(supabaseServiceProvider);
 
         final List<Future<String>> uploadTasks = [];
         for (var imageFile in _imageFiles) {
@@ -604,7 +606,7 @@ class _UploadScreenState extends State<UploadScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.camera_alt,
                       size: 40,
                       color: Colors.grey[600],
@@ -639,7 +641,7 @@ class _UploadScreenState extends State<UploadScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.photo_library,
                       size: 40,
                       color: Colors.grey[600],
