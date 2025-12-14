@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write   # needed so the action can push commits
+  contents: write
 
 jobs:
   regen-android:
@@ -15,7 +15,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Java (required by Android toolchain)
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
@@ -27,24 +27,12 @@ jobs:
           flutter-version: '3.22.0'
           channel: 'stable'
 
-      - name: Ensure repo clean
-        run: git status --porcelain
-
       - name: Regenerate Android project files
         run: |
-          # Create Android folder only (won't overwrite existing dart code)
           flutter create --platforms=android --org com.example --project-name baddel .
-          # Make sure dependencies are fetched
           flutter pub get
 
-      - name: Show created files (for debug)
-        run: |
-          echo "=== android folder preview ==="
-          ls -la android || true
-          echo "=== app src preview ==="
-          ls -la android/app || true
-
-      - name: Commit and push regenerated android/ to new branch
+      - name: Commit and push regenerated android/
         run: |
           BRANCH="android-regenerate-$(date -u +'%Y%m%dT%H%M%SZ')"
           git config user.name "github-actions[bot]"
