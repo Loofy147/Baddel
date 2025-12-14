@@ -4,6 +4,7 @@ import 'package:baddel/core/validators/input_validator.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
@@ -96,7 +97,8 @@ class _UploadScreenState extends State<UploadScreen> {
               const Text("Price (DZD)", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               TextFormField(
                 controller: _priceController,
-                keyboardType: TextInputType.number,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [DecimalTextInputFormatter()],
                 style: const TextStyle(color: Color(0xFF00E676), fontWeight: FontWeight.bold, fontSize: 18),
                 decoration: const InputDecoration(hintText: "0", hintStyle: TextStyle(color: Colors.grey)),
                 validator: InputValidator.validatePriceString,
@@ -223,6 +225,18 @@ class _UploadScreenState extends State<UploadScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class DecimalTextInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    final regEx = RegExp(r"^\d*\.?\d{0,2}");
+    final String newString = regEx.stringMatch(newValue.text) ?? "";
+    return TextEditingValue(
+      text: newString,
+      selection: TextSelection.collapsed(offset: newString.length),
     );
   }
 }
