@@ -65,6 +65,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           if (_isAdmin)
             IconButton(
               icon: const Icon(Icons.analytics, color: Colors.amber),
+              tooltip: 'View Analytics',
               onPressed: () {
                 Navigator.push(
                   context,
@@ -72,7 +73,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 );
               },
             ),
-          IconButton(icon: const Icon(Icons.logout, color: Colors.red), onPressed: _logout)
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.red),
+            tooltip: 'Logout',
+            onPressed: _logout,
+          )
         ],
       ),
       body: SingleChildScrollView(
