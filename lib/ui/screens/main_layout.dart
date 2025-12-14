@@ -75,6 +75,7 @@ class _MainLayoutState extends State<MainLayout> {
       // Floating Action Button (The Upload Button)
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFF2962FF),
+        tooltip: 'Upload Item',
         child: const Icon(Icons.add, color: Colors.white),
         onPressed: () {
           Navigator.push(context, MaterialPageRoute(builder: (_) => const UploadScreen()));
