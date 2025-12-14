@@ -4,10 +4,11 @@ class Item {
   final String title;
   final int price;
   final String imageUrl;
+  final List<String> imageUrls;
   final bool acceptsSwaps;
-  final String? category; // NEW: For recommendations
-  final double? distanceMeters; // NEW: Actual distance
-  final String distanceDisplay; // NEW: Formatted distance "5.2 km"
+  final String? category;
+  final double? distanceMeters;
+  final String distanceDisplay;
 
   Item({
     required this.id,
@@ -15,6 +16,7 @@ class Item {
     required this.title,
     required this.price,
     required this.imageUrl,
+    required this.imageUrls,
     required this.acceptsSwaps,
     this.category,
     this.distanceMeters,
@@ -28,6 +30,7 @@ class Item {
       title: json['title'] as String,
       price: (json['price'] as num?)?.toInt() ?? 0,
       imageUrl: json['image_url'] as String? ?? 'https://via.placeholder.com/400',
+      imageUrls: (json['image_urls'] as List<dynamic>?)?.map((e) => e as String).toList() ?? [json['image_url'] as String? ?? 'https://via.placeholder.com/400'],
       acceptsSwaps: json['accepts_swaps'] as bool? ?? false,
       category: json['category'] as String?,
       distanceMeters: (json['distance_meters'] as num?)?.toDouble(),
@@ -42,6 +45,7 @@ class Item {
       'title': title,
       'price': price,
       'image_url': imageUrl,
+      'image_urls': imageUrls,
       'accepts_swaps': acceptsSwaps,
       'category': category,
       'distance_meters': distanceMeters,
@@ -49,19 +53,17 @@ class Item {
     };
   }
 
-  // Helper to check if item is nearby (< 5km)
   bool get isNearby => (distanceMeters ?? double.infinity) < 5000;
 
-  // Helper to get price in Algerian Dinar format
   String get formattedPrice => '$price DZD';
 
-  // Copy with method for immutability
   Item copyWith({
     String? id,
     String? ownerId,
     String? title,
     int? price,
     String? imageUrl,
+    List<String>? imageUrls,
     bool? acceptsSwaps,
     String? category,
     double? distanceMeters,
@@ -73,6 +75,7 @@ class Item {
       title: title ?? this.title,
       price: price ?? this.price,
       imageUrl: imageUrl ?? this.imageUrl,
+      imageUrls: imageUrls ?? this.imageUrls,
       acceptsSwaps: acceptsSwaps ?? this.acceptsSwaps,
       category: category ?? this.category,
       distanceMeters: distanceMeters ?? this.distanceMeters,

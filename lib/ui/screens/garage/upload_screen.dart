@@ -17,7 +17,6 @@ class UploadScreen extends StatefulWidget {
 
 class _UploadScreenState extends State<UploadScreen> {
   final _formKey = GlobalKey<FormState>();
-  File? _imageFile;
   final _titleController = TextEditingController();
   final _priceController = TextEditingController();
   String? _selectedCategory;
@@ -34,13 +33,148 @@ class _UploadScreenState extends State<UploadScreen> {
   bool _acceptsSwaps = true;
   bool _isUploading = false;
 
-  Future<void> _pickImage() async {
+  // New state variables for multi-photo upload
+  final List<File> _imageFiles = [];
+  int _primaryImageIndex = 0;
+  final int _maxPhotos = 5;
+
+
+  //
+  // New Methods for multi-photo handling
+  //
+  Future<void> _pickImages() async {
     final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.camera); // Or gallery
-    if (pickedFile != null) {
-      setState(() => _imageFile = File(pickedFile.path));
+    final pickedFiles = await picker.pickMultiImage();
+
+    if (pickedFiles.isNotEmpty) {
+      setState(() {
+        for (var file in pickedFiles) {
+          if (_imageFiles.length < _maxPhotos) {
+            _imageFiles.add(File(file.path));
+          } else {
+            break;
+          }
+        }
+      });
     }
   }
+
+  Future<void> _takePhoto() async {
+    if (_imageFiles.length >= _maxPhotos) return;
+
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.camera);
+
+    if (pickedFile != null) {
+      setState(() {
+        _imageFiles.add(File(pickedFile.path));
+      });
+    }
+  }
+
+  void _removeImage(int index) {
+    setState(() {
+      _imageFiles.removeAt(index);
+      if (_primaryImageIndex == index) {
+        _primaryImageIndex = 0;
+      } else if (_primaryImageIndex > index) {
+        _primaryImageIndex--;
+      }
+    });
+  }
+
+  void _setPrimaryImage(int index) {
+    setState(() {
+      _primaryImageIndex = index;
+    });
+  }
+
+  void _reorderImages(int oldIndex, int newIndex) {
+    setState(() {
+      final primaryImage = _imageFiles[_primaryImageIndex];
+      if (newIndex > oldIndex) {
+        newIndex -= 1;
+      }
+      final File item = _imageFiles.removeAt(oldIndex);
+      _imageFiles.insert(newIndex, item);
+
+      _primaryImageIndex = _imageFiles.indexOf(primaryImage);
+    });
+  }
+
+  Future<void> _submitListing() async {
+    if (_formKey.currentState!.validate() && _imageFiles.isNotEmpty) {
+      setState(() => _isUploading = true);
+
+      try {
+        // GET LOCATION
+        Position? position;
+        try {
+          LocationPermission permission = await Geolocator.checkPermission();
+          if (permission == LocationPermission.denied) {
+            permission = await Geolocator.requestPermission();
+          }
+
+          if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
+            position = await Geolocator.getCurrentPosition();
+          }
+        } catch (e) {
+          Logger.error("GPS Error", e);
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🚀 Uploading images...")));
+
+        final service = SupabaseService();
+
+        // UPLOAD ALL IMAGES
+        List<String> imageUrls = [];
+        for (var imageFile in _imageFiles) {
+          final imageUrl = await service.uploadImage(imageFile);
+          if (imageUrl != null) {
+            imageUrls.add(imageUrl);
+          }
+        }
+
+        if (imageUrls.length != _imageFiles.length) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Image Upload Failed")));
+          return;
+        }
+
+        // Re-order URLs to match primary image selection
+        final primaryImageUrl = imageUrls[_primaryImageIndex];
+        imageUrls.removeAt(_primaryImageIndex);
+        imageUrls.insert(0, primaryImageUrl);
+
+
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Images uploaded, creating listing...")));
+
+        // CREATE DATABASE ENTRY
+        final success = await service.postItem(
+          title: _titleController.text,
+          price: int.parse(_priceController.text),
+          imageUrls: imageUrls,
+          acceptsSwaps: _acceptsSwaps,
+          category: _selectedCategory,
+          latitude: position?.latitude,
+          longitude: position?.longitude,
+        );
+
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Item Live in the Deck!")));
+          Navigator.pop(context);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Database Error. Check Console.")));
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isUploading = false);
+        }
+      }
+    } else if (_imageFiles.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please select at least one image")));
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -58,55 +192,39 @@ class _UploadScreenState extends State<UploadScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. IMAGE PICKER
-              GestureDetector(
-                onTap: _pickImage,
-                child: Container(
-                  height: 250,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[900],
-                    borderRadius: BorderRadius.circular(20),
-                    image: _imageFile != null
-                        ? DecorationImage(image: FileImage(_imageFile!), fit: BoxFit.cover)
-                        : null,
-                  ),
-                  child: _imageFile == null
-                      ? const Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.camera_alt, color: Colors.grey, size: 50),
-                            Text("Tap to Snap", style: TextStyle(color: Colors.grey)),
-                          ],
-                        )
-                      : null,
-                ),
-              ),
-              const SizedBox(height: 20),
+              // 1. MULTI-PHOTO UPLOADER
+              _buildPhotoSection(),
+              const SizedBox(height: 24),
 
               // 2. FORM FIELDS
-              const Text("What are you selling?", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               TextFormField(
                 controller: _titleController,
                 style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(hintText: "e.g. PlayStation 5", hintStyle: TextStyle(color: Colors.grey)),
+                decoration: const InputDecoration(
+                  labelText: "Title",
+                  labelStyle: TextStyle(color: Colors.grey),
+                  hintText: "e.g. PlayStation 5",
+                  hintStyle: TextStyle(color: Colors.grey)
+                ),
                 validator: InputValidator.validateTitle,
               ),
               const SizedBox(height: 20),
 
-              const Text("Price (DZD)", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               TextFormField(
                 controller: _priceController,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 inputFormatters: [DecimalTextInputFormatter()],
                 style: const TextStyle(color: Color(0xFF00E676), fontWeight: FontWeight.bold, fontSize: 18),
-                decoration: const InputDecoration(hintText: "0", hintStyle: TextStyle(color: Colors.grey)),
+                decoration: const InputDecoration(
+                  labelText: "Price (DZD)",
+                  labelStyle: TextStyle(color: Colors.grey),
+                  hintText: "0",
+                  hintStyle: TextStyle(color: Colors.grey)
+                ),
                 validator: InputValidator.validatePriceString,
               ),
               const SizedBox(height: 20),
 
-              // CATEGORY DROPDOWN
-              const Text("Category", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               DropdownButtonFormField<String>(
                 value: _selectedCategory,
                 items: _categories.map((String category) {
@@ -123,107 +241,353 @@ class _UploadScreenState extends State<UploadScreen> {
                 decoration: InputDecoration(
                   filled: true,
                   fillColor: Colors.grey[900],
-                  hintText: 'Select a category',
-                  hintStyle: const TextStyle(color: Colors.grey),
+                  labelText: "Category",
+                  labelStyle: const TextStyle(color: Colors.grey),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 ),
                 validator: (value) => value == null ? 'Please select a category' : null,
                 dropdownColor: Colors.grey[900],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
 
               // 3. SWAP TOGGLE
               Container(
-                padding: const EdgeInsets.all(15),
-                decoration: BoxDecoration(color: Colors.grey[900], borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(color: Colors.grey[900], borderRadius: BorderRadius.circular(12)),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text("Accept Swaps?", style: TextStyle(color: Colors.white, fontSize: 16)),
+                    const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Accept Swaps?',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Allow users to offer items in exchange',
+                          style: TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
                     Switch(
                       value: _acceptsSwaps,
                       activeColor: const Color(0xFFBB86FC),
-                      onChanged: (val) => setState(() => _acceptsSwaps = val),
+                      onChanged: (value) {
+                        setState(() => _acceptsSwaps = value);
+                      },
                     ),
                   ],
                 ),
               ),
 
-              const SizedBox(height: 40),
+              const SizedBox(height: 24),
 
               // 4. SUBMIT BUTTON
-              ElevatedButton(
-                onPressed: _isUploading
-                    ? null
-                    : () async {
-                        if (_formKey.currentState!.validate() && _imageFile != null) {
-                          setState(() => _isUploading = true);
-
-                          try {
-                            // 2. GET LOCATION
-                            Position? position;
-                            try {
-                              LocationPermission permission = await Geolocator.checkPermission();
-                              if (permission == LocationPermission.denied) {
-                                permission = await Geolocator.requestPermission();
-                              }
-
-                              if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
-                                position = await Geolocator.getCurrentPosition();
-                              }
-                            } catch (e) {
-                              Logger.error("GPS Error", e); // Fallback will happen in service
-                            }
-
-                            // 3. Show Loading
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🚀 Uploading to Supabase...")));
-
-                            final service = SupabaseService();
-
-                            // 4. Upload Image
-                            final imageUrl = await service.uploadImage(_imageFile!);
-
-                            if (imageUrl == null) {
-                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Image Upload Failed")));
-                              return;
-                            }
-
-                            // 5. Create Database Entry with Geolocation
-                            final success = await service.postItem(
-                              title: _titleController.text,
-                              price: int.parse(_priceController.text),
-                              imageUrl: imageUrl,
-                              acceptsSwaps: _acceptsSwaps,
-                              category: _selectedCategory,
-                              latitude: position?.latitude, // NEW
-                              longitude: position?.longitude, // NEW
-                            );
-
-                            if (success) {
-                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Item Live in the Deck!")));
-                              Navigator.pop(context); // Close screen
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Database Error. Check Console.")));
-                            }
-                          } finally {
-                            if (mounted) {
-                              setState(() => _isUploading = false);
-                            }
-                          }
-                        } else if (_imageFile == null) {
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please select an image")));
-                        }
-                      },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2962FF),
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 50),
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: _isUploading ? null : _submitListing,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2962FF),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: _isUploading
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text(
+                          'LIST ITEM',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1,
+                          ),
+                        ),
                 ),
-                child: _isUploading ? const CircularProgressIndicator(color: Colors.white) : const Text("POST ITEM", style: TextStyle(fontWeight: FontWeight.bold)),
-              )
+              ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildPhotoSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Photos',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              '${_imageFiles.length}/$_maxPhotos',
+              style: TextStyle(
+                color: Colors.grey[400],
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'First photo will be the cover image',
+          style: TextStyle(
+            color: Colors.grey,
+            fontSize: 12,
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Image Grid
+        ReorderableListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _imageFiles.length + 1,
+          onReorder: (oldIndex, newIndex) {
+            if (oldIndex < _imageFiles.length) {
+              _reorderImages(oldIndex, newIndex);
+            }
+          },
+          itemBuilder: (context, index) {
+            if (index < _imageFiles.length) {
+              return _buildPhotoItem(index);
+            } else {
+              return _buildAddPhotoButton();
+            }
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPhotoItem(int index) {
+    final isPrimary = index == _primaryImageIndex;
+
+    return Container(
+      key: ValueKey(_imageFiles[index].path),
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Stack(
+        children: [
+          // Image
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.file(
+              _imageFiles[index],
+              width: double.infinity,
+              height: 200,
+              fit: BoxFit.cover,
+            ),
+          ),
+
+          // Primary badge
+          if (isPrimary)
+            Positioned(
+              top: 8,
+              left: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2962FF),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.star, size: 16, color: Colors.white),
+                    SizedBox(width: 4),
+                    Text(
+                      'COVER',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // Actions
+          Positioned(
+            top: 8,
+            right: 8,
+            child: Row(
+              children: [
+                if (!isPrimary)
+                  _buildActionButton(
+                    icon: Icons.star_border,
+                    onTap: () => _setPrimaryImage(index),
+                    color: Colors.amber,
+                  ),
+                const SizedBox(width: 8),
+                _buildActionButton(
+                  icon: Icons.delete,
+                  onTap: () => _removeImage(index),
+                  color: Colors.red,
+                ),
+              ],
+            ),
+          ),
+
+          // Reorder handle
+          Positioned(
+            bottom: 8,
+            right: 8,
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.6),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.drag_handle,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    required Color color,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 8,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child: Icon(icon, size: 20, color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _buildAddPhotoButton() {
+    if (_imageFiles.length >= _maxPhotos) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      key: const ValueKey('add_photo'),
+      margin: const EdgeInsets.only(bottom: 12),
+      height: 200,
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: _takePhoto,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.grey[900],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.grey[800]!,
+                    width: 2,
+                    style: BorderStyle.solid,
+                  ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.camera_alt,
+                      size: 40,
+                      color: Colors.grey[600],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Camera',
+                      style: TextStyle(
+                        color: Colors.grey[400],
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: GestureDetector(
+              onTap: _pickImages,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.grey[900],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.grey[800]!,
+                    width: 2,
+                    style: BorderStyle.solid,
+                  ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.photo_library,
+                      size: 40,
+                      color: Colors.grey[600],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Gallery',
+                      style: TextStyle(
+                        color: Colors.grey[400],
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

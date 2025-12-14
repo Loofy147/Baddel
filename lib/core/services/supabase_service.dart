@@ -66,7 +66,7 @@ class SupabaseService {
   Future<bool> postItem({
     required String title,
     required int price,
-    required String imageUrl,
+    required List<String> imageUrls,
     required bool acceptsSwaps,
     String? category,
     double? latitude,
@@ -90,7 +90,8 @@ class SupabaseService {
         'owner_id': userId,
         'title': title,
         'price': price,
-        'image_url': imageUrl,
+        'image_urls': imageUrls,
+        'image_url': imageUrls.first,
         'accepts_swaps': acceptsSwaps,
         'is_cash_only': !acceptsSwaps,
         'location': locationString, // <--- Sent as WKT String, PostGIS parses this automatically

@@ -4,6 +4,7 @@ import 'package:baddel/ui/widgets/action_sheet.dart';
 import 'package:baddel/ui/widgets/advanced_card_swiper.dart';
 import 'package:baddel/ui/widgets/advanced_card_swiper_controller.dart';
 import 'package:baddel/ui/screens/garage/upload_screen.dart';
+import 'package:baddel/ui/widgets/social_sharing_gallery.dart';
 import 'package:flutter/material.dart';
 import 'package:baddel/core/models/item_model.dart';
 import 'package:baddel/core/services/logger.dart';
@@ -146,12 +147,26 @@ class _HomeDeckScreenState extends State<HomeDeckScreen> {
 
   // --- WIDGETS ---
   Widget _buildCard(Item item) {
-    return SwipeableItemCard(
-      imageUrl: item.imageUrl,
-      title: item.title,
-      price: item.price,
-      distance: item.distanceDisplay,
-      acceptsSwaps: item.acceptsSwaps,
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => SocialSharingGallery(
+              imageUrls: item.imageUrls,
+              title: item.title,
+              description: 'Price: ${item.price} DZD\nDistance: ${item.distanceDisplay}',
+            ),
+          ),
+        );
+      },
+      child: SwipeableItemCard(
+        imageUrl: item.imageUrl,
+        title: item.title,
+        price: item.price,
+        distance: item.distanceDisplay,
+        acceptsSwaps: item.acceptsSwaps,
+      ),
     );
   }
 
