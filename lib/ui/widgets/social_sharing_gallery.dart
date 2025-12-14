@@ -283,7 +283,7 @@ class _SocialSharingGalleryState extends State<SocialSharingGallery> {
                 crossAxisSpacing: 16,
                 children: [
                   _buildShareOption(
-                    icon: Icons.whatsapp,
+                    icon: Icons.share,
                     label: 'WhatsApp',
                     color: const Color(0xFF25D366),
                     onTap: () {

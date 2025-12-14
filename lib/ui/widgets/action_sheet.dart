@@ -2,8 +2,9 @@ import 'package.baddel/core/providers.dart';
 import 'package:baddel/core/services/auth_service.dart';
 import 'package:baddel/core/services/error_handler.dart';
 import 'package:baddel/core/services/supabase_service.dart';
-import 'package:baddel/ui/screens/garage/upload_screen.dart';
+import 'package.baddel/ui/screens/garage/upload_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:baddel/core/providers.dart';
 import 'package:baddel/core/models/item_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -20,26 +21,16 @@ class _ActionSheetState extends ConsumerState<ActionSheet> with SingleTickerProv
   late TabController _tabController;
   final TextEditingController _cashController = TextEditingController();
   String? _selectedSwapItemId;
-  double _hybridCashAmount = 0; // The extra cash added
-  bool _isSubmitting = false;
-
-  final SupabaseService _service = SupabaseService();
-  late Future<List<Item>> _inventoryFuture;
   double _hybridCashAmount = 0;
+  bool _isSubmitting = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: widget.item.acceptsSwaps ? 2 : 1, vsync: this);
     if (widget.item.acceptsSwaps) {
-      _inventoryFuture = _service.getMyInventory();
-      _inventoryFuture.then((inventory) {
-        if (inventory.isNotEmpty && mounted) {
-          setState(() {
-            _selectedSwapItemId = inventory.first.id;
-          });
-        }
-      });
+      // We don't need to call this here, the provider will handle it.
+      // We can read the provider to get the value, which will be handled by the `when` clause.
     }
   }
 
@@ -114,8 +105,6 @@ class _ActionSheetState extends ConsumerState<ActionSheet> with SingleTickerProv
                   icon: const Icon(Icons.flag, color: Colors.grey),
                   onPressed: () => _showReportDialog(context),
                   tooltip: 'Report Item',
-                  icon: const Icon(Icons.flag, color: Colors.red),
-                  onPressed: () => _showReportDialog(),
                 ),
               ],
             ),
@@ -245,23 +234,10 @@ class _ActionSheetState extends ConsumerState<ActionSheet> with SingleTickerProv
               error: (err, stack) => Center(child: Text('Error: $err')),
               data: (myItems) {
                 if (myItems.isEmpty) return _emptyGarageWidget();
-            child: FutureBuilder<List<Item>>(
-              future: _inventoryFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                // Set the default selected item if it's null
+                if (_selectedSwapItemId == null && myItems.isNotEmpty) {
+                  _selectedSwapItemId = myItems.first.id;
                 }
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return _emptyGarageWidget();
-                }
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.red)),
-                  );
-                }
-                if (!snapshot.hasData || snapshot.data!.isEmpty) return _emptyGarageWidget();
-
-                final myItems = snapshot.data!;
                 return ListView.builder(
                   scrollDirection: Axis.horizontal,
                   itemCount: myItems.length,
@@ -464,53 +440,88 @@ class _ActionSheetState extends ConsumerState<ActionSheet> with SingleTickerProv
           ],
         );
       },
-  void _showReportDialog() {
-    final reasonController = TextEditingController();
+    );
+  }
+
+  void _showReportDialog(BuildContext context) {
+    String? selectedReason;
+    final notesController = TextEditingController();
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.grey[900],
-        title: const Text('Report Item', style: TextStyle(color: Colors.white)),
-        content: TextField(
-          controller: reasonController,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            hintText: 'Enter reason for reporting',
-            hintStyle: TextStyle(color: Colors.grey),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (reasonController.text.trim().isEmpty) return;
-              final service = SupabaseService();
-              try {
-                await service.reportItem(widget.item.id, reasonController.text.trim());
-                if (mounted) {
-                  Navigator.pop(context); // Close dialog
-                  Navigator.pop(context); // Close action sheet
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Report submitted. Thank you for your feedback.')),
-                  );
-                }
-              } catch (e) {
-                if (mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed to submit report: $e'), backgroundColor: Colors.red),
-                  );
-                }
-              }
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF2C2C2C),
+          title: const Text('Report Item', style: TextStyle(color: Colors.white)),
+          content: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setState) {
+              return SingleChildScrollView(
+                child: ListBody(
+                  children: <Widget>[
+                    const Text('Why are you reporting this item?', style: TextStyle(color: Colors.grey)),
+                    ...['spam', 'inappropriate', 'fraud', 'other'].map((String reason) {
+                      return RadioListTile<String>(
+                        title: Text(reason, style: const TextStyle(color: Colors.white)),
+                        value: reason,
+                        groupValue: selectedReason,
+                        onChanged: (String? value) {
+                          setState(() {
+                            selectedReason = value;
+                          });
+                        },
+                        activeColor: const Color(0xFFBB86FC),
+                      );
+                    }),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: notesController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: const InputDecoration(
+                        hintText: 'Optional notes...',
+                        hintStyle: TextStyle(color: Colors.grey),
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 2,
+                    ),
+                  ],
+                ),
+              );
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Submit Report'),
           ),
-        ],
-      ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Submit Report', style: TextStyle(color: Colors.white)),
+              onPressed: () async {
+                if (selectedReason != null) {
+                  try {
+                    await ref.read(supabaseServiceProvider).reportItem(
+                      itemId: widget.item.id,
+                      reason: selectedReason!,
+                      notes: notesController.text.isNotEmpty ? notesController.text : null,
+                    );
+                    Navigator.of(dialogContext).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('✅ Report submitted. Thank you!')),
+                    );
+                  } catch (e) {
+                    Navigator.of(dialogContext).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('❌ Error: ${e.toString()}')),
+                    );
+                  }
+                }
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 }
