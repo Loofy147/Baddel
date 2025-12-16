@@ -211,6 +211,24 @@ class SupabaseService {
     }
   }
 
+  Stream<Map<String, dynamic>?> getUserProfileStream() async* {
+    final userId = await _getCurrentUserId();
+    yield* _client
+        .from('users')
+        .stream(primaryKey: ['id']).eq('id', userId)
+        .map((event) => event.isNotEmpty ? event.first : null);
+  }
+
+  Future<Map<String, dynamic>> getUserPrivateData() async {
+    final userId = await _getCurrentUserId();
+    try {
+      final data = await _client.from('user_private_data').select().eq('id', userId).single();
+      return data;
+    } catch (e) {
+      throw AppException.fromSupabaseError(e);
+    }
+  }
+
   // 12. DELETE ITEM (or Mark Sold)
   Future<void> deleteItem(String itemId) async {
     final userId = await _getCurrentUserId();
@@ -237,10 +255,6 @@ class SupabaseService {
         'notes': notes,
       });
     } catch (e) {
-      // Catch potential unique constraint violation if user reports the same item twice
-      if (e.toString().contains('duplicate key value violates unique constraint')) {
-        throw AppException('You have already reported this item.', code: 'DUPLICATE_REPORT');
-      }
       throw AppException.fromSupabaseError(e);
     }
   }

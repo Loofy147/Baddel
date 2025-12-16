@@ -26,9 +26,20 @@ final userProfileProvider = FutureProvider.autoDispose<Map<String, dynamic>?>((r
   return await supabaseService.getUserProfile();
 });
 
+final userProfileStreamProvider = StreamProvider.autoDispose<Map<String, dynamic>?>((ref) {
+  final supabaseService = ref.watch(supabaseServiceProvider);
+  return supabaseService.getUserProfileStream();
+});
+
 final myInventoryProvider = FutureProvider.autoDispose<List<Item>>((ref) async {
   final supabaseService = ref.watch(supabaseServiceProvider);
   return await supabaseService.getMyInventory();
+});
+
+final userPrivateDataProvider = FutureProvider.autoDispose<Map<String, dynamic>?>((ref) async {
+  final supabaseService = ref.watch(supabaseServiceProvider);
+  // This method needs to be created in SupabaseService
+  return await supabaseService.getUserPrivateData();
 });
 
 final authServiceProvider = Provider<AuthService>((ref) {
