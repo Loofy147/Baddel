@@ -18,7 +18,8 @@ class ProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final profileAsyncValue = ref.watch(userProfileProvider);
+    final profileAsyncValue = ref.watch(userProfileStreamProvider);
+    final privateDataAsyncValue = ref.watch(userPrivateDataProvider);
     final inventoryAsyncValue = ref.watch(myInventoryProvider);
     final isAdmin = ref.watch(isAdminProvider);
 
@@ -51,15 +52,19 @@ class ProfileScreen extends ConsumerWidget {
         error: (err, stack) => Center(child: Text('Error: $err')),
         data: (profileData) {
           final score = profileData?['reputation_score'] ?? 50;
-          final phone = profileData?['phone'] ?? "No Phone";
 
-          return SingleChildScrollView(
-            child: Column(
-              children: [
-                _buildHeroStats(score, phone, profileData ?? {}),
-                const SizedBox(height: 20),
-                inventoryAsyncValue.when(
-                  loading: () => const Center(child: CircularProgressIndicator()),
+          return privateDataAsyncValue.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (err, stack) => Center(child: Text('Error: $err')),
+            data: (privateData) {
+              final phone = privateData?['phone'] ?? "No Phone";
+              return SingleChildScrollView(
+                child: Column(
+                  children: [
+                    _buildHeroStats(score, phone, profileData ?? {}),
+                    const SizedBox(height: 20),
+                    inventoryAsyncValue.when(
+                      loading: () => const Center(child: CircularProgressIndicator()),
                   error: (err, stack) => Center(child: Text('Error: $err')),
                   data: (myItems) => Column(
                     children: [
