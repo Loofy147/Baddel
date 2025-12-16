@@ -4,6 +4,7 @@ import 'package:baddel/ui/widgets/action_sheet.dart';
 import 'package:baddel/ui/widgets/advanced_card_swiper.dart';
 import 'package:baddel/ui/widgets/advanced_card_swiper_controller.dart';
 import 'package:baddel/ui/screens/garage/upload_screen.dart';
+import 'package:baddel/ui/screens/search/search_screen.dart';
 import 'package:baddel/ui/widgets/social_sharing_gallery.dart';
 import 'package:flutter/material.dart';
 import 'package:baddel/core/models/item_model.dart';
@@ -179,9 +180,32 @@ class _HomeDeckScreenState extends State<HomeDeckScreen> {
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
+          const SizedBox(width: 48), // Spacer
           Image.network("https://img.icons8.com/color/48/shop.png", height: 30), // LOGO PLACEHOLDER
+          IconButton(
+            icon: const Icon(Icons.search, color: Colors.white),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => EnhancedSearchScreen(
+                    userLocation: Position(
+                      latitude: _userLat,
+                      longitude: _userLng,
+                      timestamp: DateTime.now(),
+                      accuracy: 0.0,
+                      altitude: 0.0,
+                      heading: 0.0,
+                      speed: 0.0,
+                      speedAccuracy: 0.0,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
         ],
       ),
     );

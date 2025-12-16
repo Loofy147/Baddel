@@ -14,7 +14,7 @@ final supabaseClientProvider = Provider<SupabaseClient>((ref) {
 final supabaseServiceProvider = Provider<SupabaseService>((ref) {
   final client = ref.watch(supabaseClientProvider);
   final authService = ref.watch(authServiceProvider);
-  return SupabaseService(client, authService);
+  return SupabaseService(client, authService, ref);
 });
 
 // 2. Data Provider (FutureProvider)
