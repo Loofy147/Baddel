@@ -2,6 +2,7 @@ import 'package:baddel/ui/screens/auth/login_screen.dart';
 import 'package:baddel/ui/screens/admin/analytics_dashboard.dart';
 import 'package:baddel/ui/screens/main_layout.dart';
 import 'package:baddel/ui/screens/onboarding/onboarding_screen.dart';
+import 'package:baddel/ui/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -37,8 +38,9 @@ class BaddelApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
-        primaryColor: const Color(0xFF2962FF),
-        scaffoldBackgroundColor: const Color(0xFF000000),
+        primaryColor: AppTheme.accentColor,
+        scaffoldBackgroundColor: AppTheme.primaryBackground,
+        textTheme: AppTheme.textTheme,
         useMaterial3: true,
       ),
       home: FutureBuilder<bool>(
