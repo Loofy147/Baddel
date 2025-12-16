@@ -6,6 +6,7 @@ import 'package:baddel/core/models/search_options.dart';
 import 'package:baddel/core/services/supabase_service.dart';
 import 'package:baddel/ui/widgets/common/skeleton_loader.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:baddel/core/providers.dart';
 
 // ============================================================================
 // PROVIDERS
@@ -17,8 +18,6 @@ final priceRangeProvider = StateProvider<RangeValues>((ref) => const RangeValues
 final sortByProvider = StateProvider<SortOption>((ref) => SortOption.newest);
 final acceptsSwapsOnlyProvider = StateProvider<bool>((ref) => false);
 final maxDistanceProvider = StateProvider<double>((ref) => 50); // km
-
-import 'package:baddel/core/providers.dart';
 
 final forceRefreshProvider = StateProvider.autoDispose<bool>((ref) => false);
 
