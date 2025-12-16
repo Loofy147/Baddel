@@ -1,6 +1,7 @@
 import 'package:baddel/ui/screens/auth/login_screen.dart';
 import 'package:baddel/ui/screens/admin/analytics_dashboard.dart';
 import 'package:baddel/ui/screens/main_layout.dart';
+import 'package:baddel/ui/widgets/common/connectivity_banner.dart';
 import 'package:baddel/ui/screens/onboarding/onboarding_screen.dart';
 import 'package:baddel/ui/theme.dart';
 import 'package:flutter/material.dart';
@@ -43,7 +44,8 @@ class BaddelApp extends StatelessWidget {
         textTheme: AppTheme.textTheme,
         useMaterial3: true,
       ),
-      home: FutureBuilder<bool>(
+      home: ConnectivityBanner(
+        child: FutureBuilder<bool>(
         future: _isFirstLaunch(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -57,7 +59,7 @@ class BaddelApp extends StatelessWidget {
           final session = Supabase.instance.client.auth.currentSession;
           return session != null ? const MainLayout() : const LoginScreen();
         },
-      ),
+      ),),
       routes: {
         '/login': (context) => const LoginScreen(),
         '/analytics': (context) => const AnalyticsDashboard(),

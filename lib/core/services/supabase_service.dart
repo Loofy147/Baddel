@@ -1,15 +1,22 @@
 import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:baddel/core/models/item_model.dart';
+import 'package:baddel/core/infrastructure/offline_aware_data_fetcher.dart';
+import 'package:baddel/core/infrastructure/retry_handler.dart';
+import 'package:baddel/core/models/search_options.dart';
+import 'package:baddel/ui/widgets/common/connectivity_banner.dart';
 import 'auth_service.dart';
 import 'error_handler.dart';
 import 'logger.dart';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 class SupabaseService {
   final SupabaseClient _client;
   final AuthService _authService;
+  final Ref _ref;
 
-  SupabaseService(this._client, this._authService);
+  SupabaseService(this._client, this._authService, this._ref);
 
   Future<String> _getCurrentUserId() async {
     final user = await _authService.currentUser;
@@ -244,7 +251,51 @@ class SupabaseService {
     }
   }
 
-  // 13. REPORT ITEM
+  // 13. SEARCH ITEMS
+  Future<List<Item>> searchItems({
+    String query = '',
+    String? category,
+    double minPrice = 0,
+    double maxPrice = 100000,
+    bool swapsOnly = false,
+    double? lat,
+    double? lng,
+    double maxDistance = 50,
+    SortOption sortBy = SortOption.newest,
+    bool forceRefresh = false,
+  }) async {
+    final cacheKey = 'search_${query}_${category}_${minPrice}_${maxPrice}_${swapsOnly}_${lat}_${lng}_${maxDistance}_${sortBy.name}';
+    final connectivityService = _ref.read(connectivityServiceProvider);
+
+    final fetcher = OfflineAwareDataFetcher<List<Item>>(
+      cacheKey: cacheKey,
+      cacheDuration: const Duration(minutes: 30),
+      fetchFunction: () => RetryHandler.retry(
+        operation: () async {
+          final response = await _client.rpc('get_items_by_fts', params: {
+            'search_term': query,
+            'cat_filter': category,
+        'min_price_filter': minPrice,
+        'max_price_filter': maxPrice,
+        'swaps_filter': swapsOnly,
+        'user_lat': lat,
+        'user_lng': lng,
+        'max_dist_km': maxDistance,
+        'sort_by': sortBy.name,
+      });
+          final data = response as List<dynamic>;
+          return data.map((json) => Item.fromJson(json)).toList();
+        },
+      ),
+    );
+
+    return await fetcher.fetch(
+      connectivityService: connectivityService,
+      forceRefresh: forceRefresh,
+    );
+  }
+
+  // 14. REPORT ITEM
   Future<void> reportItem({required String itemId, required String reason, String? notes}) async {
     final userId = await _getCurrentUserId();
     try {
