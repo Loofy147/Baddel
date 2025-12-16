@@ -22,7 +22,6 @@
 -- Stores public user profiles, linked to Supabase authentication.
 CREATE TABLE public.users (
     id uuid NOT NULL PRIMARY KEY REFERENCES auth.users(id),
-    phone text NULL,
     reputation_score real DEFAULT 50.0 NOT NULL,
     badges text[] NULL,
     gamification_points integer DEFAULT 0,
@@ -34,6 +33,13 @@ CREATE TABLE public.users (
     suspended_at timestamptz
 );
 COMMENT ON TABLE public.users IS 'Stores public user profiles, linked to Supabase authentication and app-specific data.';
+
+-- Stores private user data, accessible only by the user.
+CREATE TABLE public.user_private_data (
+    id uuid NOT NULL PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
+    phone text NULL
+);
+COMMENT ON TABLE public.user_private_data IS 'Stores private user data, accessible only by the user.';
 
 -- Contains all items listed by users for sale or swap.
 CREATE TABLE public.items (
@@ -274,7 +280,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_pending_offer ON offers(buyer_id, t
 -- Feature Tables
 CREATE INDEX IF NOT EXISTS idx_reports_reported_item_id ON reports(reported_item_id);
 CREATE INDEX IF NOT EXISTS idx_user_interactions_user_action ON user_interactions(user_id, action, created_at);
+CREATE INDEX IF NOT EXISTS idx_user_interactions_item_action ON user_interactions(item_id, action, created_at);
 CREATE INDEX IF NOT EXISTS idx_items_category ON items(category);
+CREATE INDEX IF NOT EXISTS idx_items_status_owner ON items(status, owner_id);
 
 -- =================================================================
 -- 6. FUNCTIONS & TRIGGERS
@@ -284,19 +292,26 @@ CREATE INDEX IF NOT EXISTS idx_items_category ON items(category);
 -- User & Stats Management
 -- ---------------------------------
 
--- Creates a user_stats entry for a new user.
-CREATE OR REPLACE FUNCTION create_user_stats_on_signup()
+-- Creates associated public and private user entries on new user signup.
+CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
+    -- Create a public user profile. This is necessary to link the auth user to app-specific data.
+    INSERT INTO public.users (id) VALUES (NEW.id);
+
+    -- Create a private user data entry, linked to the new public profile.
+    INSERT INTO public.user_private_data (id, phone) VALUES (NEW.id, NEW.phone);
+
+    -- Create a user stats entry.
     INSERT INTO public.user_stats (user_id) VALUES (NEW.id);
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Trigger for the above function.
-CREATE TRIGGER on_new_user_create_stats
-AFTER INSERT ON auth.users
-FOR EACH ROW EXECUTE FUNCTION create_user_stats_on_signup();
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION handle_new_user();
 
 -- ---------------------------------
 -- Security & Auditing
@@ -542,6 +557,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- ---------------------------------
 
 -- THE MASTER RECOMMENDATION FUNCTION
+-- THE MASTER RECOMMENDATION FUNCTION (v2 - Optimized)
 CREATE OR REPLACE FUNCTION get_personalized_recommendations(
   p_user_id UUID,
   p_user_lat DOUBLE PRECISION,
@@ -560,47 +576,92 @@ AS $$
 DECLARE
   v_user_prefs RECORD;
   v_interaction_count INTEGER;
+  v_user_location GEOGRAPHY;
 BEGIN
-  SELECT * INTO v_user_prefs FROM user_preferences WHERE user_id = p_user_id;
+  -- Fetch user preferences and interaction count in one go
+  SELECT up.*, (SELECT COUNT(*) FROM user_interactions WHERE user_id = p_user_id)
+  INTO v_user_prefs, v_interaction_count
+  FROM user_preferences up
+  WHERE up.user_id = p_user_id;
 
   -- Create default preferences if none exist
   IF v_user_prefs IS NULL THEN
     INSERT INTO user_preferences(user_id) VALUES (p_user_id) RETURNING * INTO v_user_prefs;
+    v_interaction_count := 0;
   END IF;
 
-  SELECT COUNT(*) INTO v_interaction_count FROM user_interactions WHERE user_id = p_user_id;
+  v_user_location := ST_SetSRID(ST_MakePoint(p_user_lng, p_user_lat), 4326);
 
   RETURN QUERY
-  WITH scored_items AS (
-    SELECT
-      i.id as item_id, i.owner_id, i.title, i.price, i.image_url, i.category, i.accepts_swaps,
-      ST_Distance(i.location::geography, ST_SetSRID(ST_MakePoint(p_user_lng, p_user_lat), 4326)::geography) as distance,
-      GREATEST(0, 100 - (ST_Distance(i.location::geography, ST_SetSRID(ST_MakePoint(p_user_lng, p_user_lat), 4326)::geography) / 500.0)) * 0.35 as proximity_score,
-      CASE WHEN i.category = ANY(SELECT jsonb_array_elements_text(v_user_prefs.preferred_categories)) THEN 100 ELSE 30 END * 0.25 as category_score,
-      CASE WHEN i.price BETWEEN v_user_prefs.price_range_min AND v_user_prefs.price_range_max THEN 100 ELSE GREATEST(0, 100 - (ABS(i.price - (v_user_prefs.price_range_min + v_user_prefs.price_range_max)/2.0)) / 500.0) END * 0.15 as price_score,
-      COALESCE((SELECT final_score FROM item_scores WHERE item_id = i.id), 50) * 0.10 as quality_score,
-      CASE WHEN i.created_at > NOW() - INTERVAL '3 days' THEN 100 WHEN i.created_at > NOW() - INTERVAL '7 days' THEN 60 ELSE 20 END * 0.10 as freshness_score,
-      CASE WHEN i.accepts_swaps = v_user_prefs.prefers_swaps THEN 100 ELSE 50 END * 0.05 as swap_score,
-      CASE WHEN EXISTS (SELECT 1 FROM user_interactions ui WHERE ui.user_id = p_user_id AND ui.item_id = i.id AND ui.action IN ('swipe_left', 'purchased')) THEN -1000 ELSE 0 END as interaction_penalty,
-      CASE WHEN (SELECT reputation_score FROM users WHERE id = i.owner_id) > 80 THEN 15 WHEN (SELECT reputation_score FROM users WHERE id = i.owner_id) < 30 THEN -20 ELSE 0 END as reputation_boost,
-      CASE WHEN (SELECT COUNT(*) FROM user_interactions WHERE item_id = i.id AND action = 'swipe_right' AND created_at > NOW() - INTERVAL '7 days') > 10 THEN 25 ELSE 0 END as popularity_boost,
-      CASE WHEN i.is_boosted AND i.boost_expires_at > NOW() THEN 100 ELSE 0 END as boost_score
+  WITH relevant_items AS (
+    SELECT i.*
     FROM items i
     WHERE i.status = 'active'
       AND i.owner_id != p_user_id
-      AND ST_DWithin(i.location::geography, ST_SetSRID(ST_MakePoint(p_user_lng, p_user_lat), 4326)::geography, v_user_prefs.max_distance_km * 1000)
-      AND NOT EXISTS (SELECT 1 FROM blocked_users WHERE user_id = p_user_id AND blocked_user_id = i.owner_id)
+      AND ST_DWithin(i.location, v_user_location, v_user_prefs.max_distance_km * 1000)
+      AND NOT EXISTS (
+        SELECT 1 FROM blocked_users bu
+        WHERE (bu.user_id = p_user_id AND bu.blocked_user_id = i.owner_id)
+           OR (bu.user_id = i.owner_id AND bu.blocked_user_id = p_user_id)
+      )
+  ),
+  scored_items AS (
+    SELECT
+      i.id as item_id, i.owner_id, i.title, i.price, i.image_url, i.category, i.accepts_swaps,
+      -- Performance: Pre-fetch scores and join instead of correlated subqueries
+      COALESCE(isc.final_score, 50) as quality_score,
+      u.reputation_score,
+      ST_Distance(i.location, v_user_location) as distance,
+      -- Check for swipe left/purchased in a single join
+      (ui.action IS NOT NULL) as has_negative_interaction,
+      (pop.swipe_count > 10) as is_popular,
+      i.created_at,
+      i.is_boosted,
+      i.boost_expires_at
+    FROM relevant_items i
+    LEFT JOIN item_scores isc ON i.id = isc.item_id
+    LEFT JOIN users u ON i.owner_id = u.id
+    -- Join to find negative interactions
+    LEFT JOIN user_interactions ui ON i.id = ui.item_id AND ui.user_id = p_user_id AND ui.action IN ('swipe_left', 'purchased')
+    -- Join to calculate popularity
+    LEFT JOIN (
+        SELECT item_id, COUNT(*) as swipe_count
+        FROM user_interactions
+        WHERE action = 'swipe_right' AND created_at > NOW() - INTERVAL '7 days'
+        GROUP BY item_id
+    ) pop ON i.id = pop.item_id
   ),
   final_scores AS (
-    SELECT *, (proximity_score + category_score + price_score + quality_score + freshness_score + swap_score + interaction_penalty + reputation_boost + popularity_boost + boost_score) as final_score,
-      jsonb_build_object('proximity', ROUND(proximity_score::numeric, 2), 'category', ROUND(category_score::numeric, 2), 'price', ROUND(price_score::numeric, 2)) as breakdown
+    SELECT
+      *,
+      -- Score Calculation (moved from main query to CTE for clarity)
+      GREATEST(0, 100 - (distance / 500.0)) * 0.35 +                                  -- proximity_score
+      CASE WHEN category = ANY(SELECT jsonb_array_elements_text(v_user_prefs.preferred_categories)) THEN 100 ELSE 30 END * 0.25 + -- category_score
+      CASE WHEN price BETWEEN v_user_prefs.price_range_min AND v_user_prefs.price_range_max THEN 100 ELSE GREATEST(0, 100 - (ABS(price - (v_user_prefs.price_range_min + v_user_prefs.price_range_max)/2.0)) / 500.0) END * 0.15 + -- price_score
+      quality_score * 0.10 +                                                            -- quality_score
+      CASE WHEN created_at > NOW() - INTERVAL '3 days' THEN 100 WHEN created_at > NOW() - INTERVAL '7 days' THEN 60 ELSE 20 END * 0.10 + -- freshness_score
+      CASE WHEN accepts_swaps = v_user_prefs.prefers_swaps THEN 100 ELSE 50 END * 0.05 + -- swap_score
+      CASE WHEN has_negative_interaction THEN -1000 ELSE 0 END +                        -- interaction_penalty
+      CASE WHEN reputation_score > 80 THEN 15 WHEN reputation_score < 30 THEN -20 ELSE 0 END + -- reputation_boost
+      CASE WHEN is_popular THEN 25 ELSE 0 END +                                         -- popularity_boost
+      CASE WHEN is_boosted AND boost_expires_at > NOW() THEN 100 ELSE 0 END             -- boost_score
+      as final_score
     FROM scored_items
   )
-  SELECT fs.item_id, fs.owner_id, fs.title, fs.price, fs.image_url, fs.category, fs.accepts_swaps, fs.distance as distance_meters,
+  SELECT
+    fs.item_id, fs.owner_id, fs.title, fs.price, fs.image_url, fs.category, fs.accepts_swaps,
+    fs.distance as distance_meters,
     CASE WHEN fs.distance < 1000 THEN ROUND(fs.distance)::TEXT || ' m' ELSE ROUND(fs.distance / 1000.0, 1)::TEXT || ' km' END as distance_display,
-    fs.final_score as recommendation_score, fs.breakdown as score_breakdown
+    fs.final_score as recommendation_score,
+    jsonb_build_object(
+        'proximity', ROUND((GREATEST(0, 100 - (fs.distance / 500.0)) * 0.35)::numeric, 2),
+        'category', ROUND((CASE WHEN fs.category = ANY(SELECT jsonb_array_elements_text(v_user_prefs.preferred_categories)) THEN 100 ELSE 30 END * 0.25)::numeric, 2),
+        'price', ROUND((CASE WHEN fs.price BETWEEN v_user_prefs.price_range_min AND v_user_prefs.price_range_max THEN 100 ELSE GREATEST(0, 100 - (ABS(fs.price - (v_user_prefs.price_range_min + v_user_prefs.price_range_max)/2.0)) / 500.0) END * 0.15)::numeric, 2)
+    ) as score_breakdown
   FROM final_scores fs
-  WHERE (v_interaction_count < 10 AND fs.popularity_boost > 0) OR (v_interaction_count >= 10 AND fs.final_score > 0)
+  -- Filter out negatively interacted items and apply logic for new vs. existing users
+  WHERE NOT fs.has_negative_interaction
+    AND (v_interaction_count < 10 AND fs.is_popular OR v_interaction_count >= 10)
   ORDER BY CASE WHEN RANDOM() < 0.1 THEN RANDOM() * 100 ELSE fs.final_score END DESC, fs.distance ASC
   LIMIT p_limit OFFSET p_offset;
 END;
@@ -804,6 +865,7 @@ $$;
 
 -- Enable RLS on all relevant tables
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_private_data ENABLE ROW LEVEL SECURITY;
 ALTER TABLE items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE offers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
@@ -811,14 +873,32 @@ ALTER TABLE reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_interactions ENABLE ROW LEVEL SECURITY;
 -- Other tables like achievements are public or managed by triggers/functions.
 
--- USERS Table
-CREATE POLICY "users_select_own" ON users FOR SELECT USING (auth.uid() = id);
+-- USERS Table (Public Profiles)
+-- Any authenticated user can view public profiles.
+CREATE POLICY "users_select_all_authenticated" ON users FOR SELECT USING (true);
+-- Users can only update their own profile.
 CREATE POLICY "users_update_own" ON users FOR UPDATE USING (auth.uid() = id);
 
+-- USER_PRIVATE_DATA Table
+-- Users can only access their own private data.
+CREATE POLICY "user_private_data_all_own" ON user_private_data FOR ALL USING (auth.uid() = id);
+
 -- ITEMS Table
-CREATE POLICY "items_select_active" ON items FOR SELECT USING (status = 'active');
+-- Users can see active items, except those from users they've blocked or who have blocked them.
+CREATE POLICY "items_select_active" ON items FOR SELECT USING (
+    status = 'active' AND
+    NOT EXISTS (
+        SELECT 1 FROM blocked_users
+        WHERE
+            (blocked_users.user_id = auth.uid() AND blocked_users.blocked_user_id = items.owner_id) OR
+            (blocked_users.user_id = items.owner_id AND blocked_users.blocked_user_id = auth.uid())
+    )
+);
+-- Users can insert items they own.
 CREATE POLICY "items_insert_own" ON items FOR INSERT WITH CHECK (auth.uid() = owner_id);
+-- Users can update their own items.
 CREATE POLICY "items_update_own" ON items FOR UPDATE USING (auth.uid() = owner_id);
+-- Users can delete their own items.
 CREATE POLICY "items_delete_own" ON items FOR DELETE USING (auth.uid() = owner_id);
 
 -- OFFERS Table
