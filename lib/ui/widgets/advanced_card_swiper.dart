@@ -1,4 +1,5 @@
 // lib/ui/widgets/advanced_card_swiper.dart
+import 'package:baddel/features/favorites/favorites_system.dart';
 import 'package:baddel/ui/widgets/advanced_card_swiper_controller.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -304,6 +305,7 @@ enum SwipeDirection { left, right }
 
 // Example usage with beautiful card design
 class SwipeableItemCard extends StatelessWidget {
+  final String itemId;
   final String imageUrl;
   final String title;
   final int price;
@@ -312,6 +314,7 @@ class SwipeableItemCard extends StatelessWidget {
 
   const SwipeableItemCard({
     super.key,
+    required this.itemId,
     required this.imageUrl,
     required this.title,
     required this.price,
@@ -447,17 +450,9 @@ class SwipeableItemCard extends StatelessWidget {
           Positioned(
             top: 16,
             right: 16,
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.info_outline,
-                color: Colors.white,
-                size: 24,
-              ),
+            child: FavoriteButton(
+              itemId: itemId,
+              size: 32,
             ),
           ),
         ],

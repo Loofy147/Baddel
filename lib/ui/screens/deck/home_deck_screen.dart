@@ -167,6 +167,7 @@ class _HomeDeckScreenState extends State<HomeDeckScreen> {
         );
       },
       child: SwipeableItemCard(
+        itemId: item.id,
         imageUrl: item.imageUrl,
         title: item.title,
         price: item.price,
