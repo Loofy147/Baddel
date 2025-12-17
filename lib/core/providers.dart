@@ -1,3 +1,4 @@
+import 'package:baddel/core/infrastructure/connectivity_service.dart';
 import 'package:baddel/core/models/item_model.dart';
 import 'package:baddel/core/services/auth_service.dart';
 import 'package:baddel/core/services/supabase_service.dart';
@@ -14,7 +15,8 @@ final supabaseClientProvider = Provider<SupabaseClient>((ref) {
 final supabaseServiceProvider = Provider<SupabaseService>((ref) {
   final client = ref.watch(supabaseClientProvider);
   final authService = ref.watch(authServiceProvider);
-  return SupabaseService(client, authService, ref);
+  final connectivityService = ref.watch(connectivityServiceProvider);
+  return SupabaseService(client, authService, connectivityService);
 });
 
 // 2. Data Provider (FutureProvider)

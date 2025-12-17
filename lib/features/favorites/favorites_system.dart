@@ -20,9 +20,6 @@ class FavoritesService {
       'user_id': userId,
       'item_id': itemId,
     });
-
-    // Increment favorite count on item
-    await _supabase.rpc('increment_favorite_count', params: {'item_id': itemId});
   }
 
   // Remove item from favorites
@@ -33,11 +30,8 @@ class FavoritesService {
     await _supabase
         .from('favorites')
         .delete()
-        .eq('user_id': userId)
-        .eq('item_id': itemId);
-
-    // Decrement favorite count on item
-    await _supabase.rpc('decrement_favorite_count', params: {'item_id': itemId});
+        .eq('user_id', userId)
+        .eq('item_id', itemId);
   }
 
   // Check if item is favorited
@@ -79,24 +73,20 @@ class FavoritesService {
     return _supabase
         .from('favorites')
         .stream(primaryKey: ['id'])
-        .eq('user_id': userId)
+        .eq('user_id', userId)
         .order('created_at', ascending: false)
         .asyncMap((data) async {
-          final List<Item> items = [];
-          for (var fav in data) {
-            try {
-              final itemData = await _supabase
-                  .from('items')
-                  .select()
-                  .eq('id', fav['item_id'])
-                  .single();
-              items.add(Item.fromJson(itemData));
-            } catch (e) {
-              // Item might be deleted, skip it
-              continue;
-            }
+          if (data.isEmpty) {
+            return [];
           }
-          return items;
+          final itemIds = data.map((fav) => fav['item_id'] as String).toList();
+          final itemData = await _supabase
+              .from('items')
+              .select()
+              .in_('id', itemIds);
+          return (itemData as List)
+              .map((item) => Item.fromJson(item))
+              .toList();
         });
   }
 }

@@ -4,7 +4,7 @@ import 'package:baddel/core/models/item_model.dart';
 import 'package:baddel/core/infrastructure/offline_aware_data_fetcher.dart';
 import 'package:baddel/core/infrastructure/retry_handler.dart';
 import 'package:baddel/core/models/search_options.dart';
-import 'package:baddel/ui/widgets/common/connectivity_banner.dart';
+import 'package:baddel/core/infrastructure/connectivity_service.dart';
 import 'auth_service.dart';
 import 'error_handler.dart';
 import 'logger.dart';
@@ -14,9 +14,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 class SupabaseService {
   final SupabaseClient _client;
   final AuthService _authService;
-  final Ref _ref;
+  final ConnectivityService _connectivityService;
 
-  SupabaseService(this._client, this._authService, this._ref);
+  SupabaseService(this._client, this._authService, this._connectivityService);
 
   Future<String> _getCurrentUserId() async {
     final user = await _authService.currentUser;
@@ -265,7 +265,6 @@ class SupabaseService {
     bool forceRefresh = false,
   }) async {
     final cacheKey = 'search_${query}_${category}_${minPrice}_${maxPrice}_${swapsOnly}_${lat}_${lng}_${maxDistance}_${sortBy.name}';
-    final connectivityService = _ref.read(connectivityServiceProvider);
 
     final fetcher = OfflineAwareDataFetcher<List<Item>>(
       cacheKey: cacheKey,
@@ -290,7 +289,7 @@ class SupabaseService {
     );
 
     return await fetcher.fetch(
-      connectivityService: connectivityService,
+      connectivityService: _connectivityService,
       forceRefresh: forceRefresh,
     );
   }
