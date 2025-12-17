@@ -2,17 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:baddel/ui/screens/deck/home_deck_screen.dart';
 import 'package:baddel/ui/screens/chat/offers_screen.dart';
 import 'package:baddel/ui/screens/profile/profile_screen.dart';
+import 'package:baddel/features/notifications/notifications_system.dart';
 import 'package:baddel/ui/screens/garage/upload_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-class MainLayout extends StatefulWidget {
+class MainLayout extends ConsumerStatefulWidget {
   const MainLayout({super.key});
 
   @override
-  State<MainLayout> createState() => _MainLayoutState();
+  ConsumerState<MainLayout> createState() => _MainLayoutState();
 }
 
-class _MainLayoutState extends State<MainLayout> {
+class _MainLayoutState extends ConsumerState<MainLayout> {
   int _currentIndex = 0;
 
   final List<Widget> _screens = [
@@ -24,45 +26,31 @@ class _MainLayoutState extends State<MainLayout> {
   @override
   void initState() {
     super.initState();
-    _setupRealtimeListeners();
+    _setupNotificationListener();
   }
 
-  void _setupRealtimeListeners() {
-    final myId = Supabase.instance.client.auth.currentUser?.id;
-    if (myId == null) return;
-
-    // LISTEN FOR NEW OFFERS
-    Supabase.instance.client
-        .from('offers')
-        .stream(primaryKey: ['id'])
-        .eq('seller_id', myId)
-        .listen((List<Map<String, dynamic>> data) {
-           // Basic logic: if a new item appears in the stream that wasn't there before
-           // For simplicity in Beta, we just check the latest one timestamp
-           // (This is a simplified example. In prod, use Postgres Changes)
-           if (data.isNotEmpty) {
-             final lastOffer = data.last;
-             // Check if it's "New" (created within last 10 seconds)
-             final createdAt = DateTime.parse(lastOffer['created_at']);
-             if (DateTime.now().difference(createdAt).inSeconds < 10) {
-               _showNotification("🔔 New Offer received!");
-             }
-           }
-        });
-
-    // LISTEN FOR NEW MESSAGES
-    // (Similar logic for 'messages' table where receiver_id = myId)
-    // You'd need to add 'receiver_id' to messages table to query efficiently,
-    // or join tables. For now, skipping to keep simple.
+  void _setupNotificationListener() {
+    ref.listen(notificationsProvider, (previous, next) {
+      next.when(
+        data: (notifications) {
+          final unread = notifications.where((n) => !n.isRead).toList();
+          if (unread.isNotEmpty) {
+            _showInAppNotification(unread.first);
+          }
+        },
+        loading: () {},
+        error: (_, __) {},
+      );
+    });
   }
 
-  void _showNotification(String message) {
+  void _showInAppNotification(AppNotification notification) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message, style: const TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: const Color(0xFF00E676), // Neon Green
+        content: InAppNotificationBanner(notification: notification),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 3),
       ),
     );
   }

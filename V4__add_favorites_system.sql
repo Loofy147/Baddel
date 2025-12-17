@@ -27,20 +27,22 @@ CREATE INDEX IF NOT EXISTS idx_favorites_item_id ON public.favorites(item_id);
 -- Add favorite count to items (optional, for display)
 ALTER TABLE public.items ADD COLUMN IF NOT EXISTS favorite_count INTEGER DEFAULT 0;
 
--- Function to increment favorite count
-CREATE OR REPLACE FUNCTION increment_favorite_count(item_id UUID)
-RETURNS void AS $$
+-- Function and Trigger to update favorite count automatically
+CREATE OR REPLACE FUNCTION update_favorite_count()
+RETURNS TRIGGER AS $$
 BEGIN
-  UPDATE items SET favorite_count = COALESCE(favorite_count, 0) + 1
-  WHERE id = item_id;
+  IF (TG_OP = 'INSERT') THEN
+    UPDATE items SET favorite_count = favorite_count + 1 WHERE id = NEW.item_id;
+    RETURN NEW;
+  ELSIF (TG_OP = 'DELETE') THEN
+    UPDATE items SET favorite_count = favorite_count - 1 WHERE id = OLD.item_id;
+    RETURN OLD;
+  END IF;
+  RETURN NULL;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Function to decrement favorite count
-CREATE OR REPLACE FUNCTION decrement_favorite_count(item_id UUID)
-RETURNS void AS $$
-BEGIN
-  UPDATE items SET favorite_count = GREATEST(COALESCE(favorite_count, 0) - 1, 0)
-  WHERE id = item_id;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+DROP TRIGGER IF EXISTS on_favorite_change ON favorites;
+CREATE TRIGGER on_favorite_change
+  AFTER INSERT OR DELETE ON favorites
+  FOR EACH ROW EXECUTE FUNCTION update_favorite_count();

@@ -4,6 +4,7 @@ import 'package:baddel/core/services/auth_service.dart';
 import 'package:baddel/core/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:baddel/features/favorites/favorites_system.dart';
+import 'package:baddel/features/notifications/notifications_system.dart';
 import 'package:baddel/ui/screens/admin/analytics_dashboard.dart';
 import 'package:baddel/ui/screens/garage/upload_screen.dart';
 import 'widgets/profile_header.dart';
@@ -36,6 +37,13 @@ class ProfileScreen extends ConsumerWidget {
               tooltip: 'View Analytics',
               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AnalyticsDashboard())),
             ),
+          NotificationBadge(
+            child: IconButton(
+              icon: const Icon(Icons.notifications, color: Colors.white),
+              tooltip: 'Notifications',
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationsScreen())),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.favorite, color: Colors.red),
             tooltip: 'My Favorites',
