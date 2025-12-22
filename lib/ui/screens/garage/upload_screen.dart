@@ -20,6 +20,18 @@ class UploadScreen extends ConsumerStatefulWidget {
   ConsumerState<UploadScreen> createState() => _UploadScreenState();
 }
 
+class DecimalTextInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    final regEx = RegExp(r"^\d*\.?\d{0,2}");
+    final String newString = regEx.stringMatch(newValue.text) ?? "";
+    return TextEditingValue(
+      text: newString,
+      selection: TextSelection.collapsed(offset: newString.length),
+    );
+  }
+}
+
 class _UploadScreenState extends ConsumerState<UploadScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
@@ -165,7 +177,7 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
 
         await service.postItem(
           title: _titleController.text,
-          price: int.parse(_priceController.text),
+          price: double.parse(_priceController.text).round(),
           imageUrls: imageUrls,
           acceptsSwaps: _acceptsSwaps,
           category: _selectedCategory,
@@ -429,12 +441,14 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
                     icon: Icons.star_border,
                     onTap: () => _setPrimaryImage(index),
                     color: Colors.amber,
+                    tooltip: 'Set as cover',
                   ),
                 const SizedBox(width: 8),
                 _buildActionButton(
                   icon: Icons.delete,
                   onTap: () => _removeImage(index),
                   color: Colors.red,
+                  tooltip: 'Delete image',
                 ),
               ],
             ),
@@ -464,23 +478,23 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
     required IconData icon,
     required VoidCallback onTap,
     required Color color,
+    required String tooltip,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              blurRadius: 8,
-              spreadRadius: 1,
-            ),
-          ],
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: color,
+        shape: const CircleBorder(),
+        elevation: 4.0,
+        shadowColor: Colors.black.withOpacity(0.3),
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Icon(icon, size: 20, color: Colors.white),
+          ),
         ),
-        child: Icon(icon, size: 20, color: Colors.white),
       ),
     );
   }
@@ -567,18 +581,6 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
           ),
         ],
       ),
-    );
-  }
-}
-
-class DecimalTextInputFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
-    final regEx = RegExp(r"^\d*\.?\d{0,2}");
-    final String newString = regEx.stringMatch(newValue.text) ?? "";
-    return TextEditingValue(
-      text: newString,
-      selection: TextSelection.collapsed(offset: newString.length),
     );
   }
 }
