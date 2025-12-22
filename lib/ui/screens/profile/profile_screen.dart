@@ -19,6 +19,33 @@ class ProfileScreen extends ConsumerWidget {
     Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
   }
 
+  void _showLogoutConfirmationDialog(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Logout'),
+          content: const Text('Are you sure you want to logout?'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+            ),
+            TextButton(
+              child: const Text('Logout'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                _logout(context, ref);
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsyncValue = ref.watch(userProfileStreamProvider);
@@ -58,7 +85,7 @@ class ProfileScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.red),
             tooltip: 'Logout',
-            onPressed: () => _logout(context, ref),
+            onPressed: () => _showLogoutConfirmationDialog(context, ref),
           )
         ],
       ),
