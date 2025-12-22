@@ -1,6 +1,7 @@
 import 'package:baddel/core/infrastructure/connectivity_service.dart';
 import 'package:baddel/core/models/item_model.dart';
 import 'package:baddel/core/services/auth_service.dart';
+import 'package:baddel/core/services/seller_analytics_service.dart';
 import 'package:baddel/core/services/supabase_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide Provider;
@@ -55,4 +56,15 @@ final isAdminProvider = Provider.autoDispose<bool>((ref) {
     loading: () => false,
     error: (e, s) => false,
   );
+});
+
+// Provider for the SellerAnalyticsService
+final sellerAnalyticsServiceProvider = Provider<SellerAnalyticsService>((ref) {
+  return SellerAnalyticsService();
+});
+
+// FutureProvider to fetch seller metrics
+final sellerMetricsProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
+  final analyticsService = ref.watch(sellerAnalyticsServiceProvider);
+  return await analyticsService.getSellerMetrics();
 });

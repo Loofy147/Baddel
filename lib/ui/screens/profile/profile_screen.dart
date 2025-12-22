@@ -39,7 +39,7 @@ class ProfileScreen extends ConsumerWidget {
               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AnalyticsDashboard())),
             ),
           IconButton(
-            icon: const Icon(Icons.dashboard, color: Colors.blue),
+            icon: Icon(Icons.dashboard, color: Theme.of(context).colorScheme.secondary),
             tooltip: 'Seller Dashboard',
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const SellerPerformanceDashboardScreen())),
           ),

@@ -1,51 +1,59 @@
+import 'package:baddel/core/providers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class SellerPerformanceDashboardScreen extends StatelessWidget {
+class SellerPerformanceDashboardScreen extends ConsumerWidget {
   const SellerPerformanceDashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final metricsAsyncValue = ref.watch(sellerMetricsProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Seller Dashboard'),
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16.0),
-        children: const [
-          MetricCard(
-            title: 'Impression Rate',
-            value: '1,234 views',
-            description: 'How often your item appears in user Decks.',
-            icon: Icons.visibility,
-            color: Colors.blue,
-          ),
-          SizedBox(height: 16),
-          MetricCard(
-            title: 'Swipe-Right Rate',
-            value: '78%',
-            description: 'Percentage of users who showed interest.',
-            icon: Icons.thumb_up_alt,
-            color: Colors.green,
-          ),
-          SizedBox(height: 16),
-          MetricCard(
-            title: 'Offer-to-Acceptance Ratio',
-            value: '42%',
-            description: 'Efficiency of converting interest into a final deal.',
-            icon: Icons.swap_horiz,
-            color: Colors.orange,
-          ),
-          SizedBox(height: 16),
-          MetricCard(
-            title: 'Geographic Heatmap',
-            value: 'View Heatmap',
-            description: 'Where your item is getting the most views.',
-            icon: Icons.map,
-            color: Colors.purple,
-          ),
-        ],
+      body: metricsAsyncValue.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, stack) => Center(child: Text('Error: $err')),
+        data: (metrics) => ListView(
+          padding: const EdgeInsets.all(16.0),
+          children: [
+            MetricCard(
+              title: 'Impression Rate',
+              value: metrics['impressionRate']['value'],
+              description: metrics['impressionRate']['description'],
+              icon: Icons.visibility,
+              color: Colors.blue,
+            ),
+            const SizedBox(height: 16),
+            MetricCard(
+              title: 'Swipe-Right Rate',
+              value: metrics['swipeRightRate']['value'],
+              description: metrics['swipeRightRate']['description'],
+              icon: Icons.thumb_up_alt,
+              color: Colors.green,
+            ),
+            const SizedBox(height: 16),
+            MetricCard(
+              title: 'Offer-to-Acceptance Ratio',
+              value: metrics['offerToAcceptanceRatio']['value'],
+              description: metrics['offerToAcceptanceRatio']['description'],
+              icon: Icons.swap_horiz,
+              color: Colors.orange,
+            ),
+            const SizedBox(height: 16),
+            MetricCard(
+              title: 'Geographic Heatmap',
+              value: metrics['geographicHeatmap']['value'],
+              description: metrics['geographicHeatmap']['description'],
+              icon: Icons.map,
+              color: Colors.purple,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -96,7 +104,6 @@ class MetricCard extends StatelessWidget {
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 24,
-                color: Colors.white,
               ),
             ),
             const SizedBox(height: 5),
