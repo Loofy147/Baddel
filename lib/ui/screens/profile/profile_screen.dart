@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:baddel/features/favorites/favorites_system.dart';
 import 'package:baddel/features/notifications/notifications_system.dart';
 import 'package:baddel/ui/screens/admin/analytics_dashboard.dart';
+import 'package:baddel/ui/screens/seller_dashboard/seller_performance_dashboard_screen.dart';
 import 'package:baddel/ui/screens/garage/upload_screen.dart';
 import 'widgets/profile_header.dart';
 import 'widgets/inventory_grid.dart';
@@ -37,6 +38,11 @@ class ProfileScreen extends ConsumerWidget {
               tooltip: 'View Analytics',
               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AnalyticsDashboard())),
             ),
+          IconButton(
+            icon: const Icon(Icons.dashboard, color: Colors.blue),
+            tooltip: 'Seller Dashboard',
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const SellerPerformanceDashboardScreen())),
+          ),
           NotificationBadge(
             child: IconButton(
               icon: const Icon(Icons.notifications, color: Colors.white),
