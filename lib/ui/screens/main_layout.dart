@@ -6,6 +6,7 @@ import 'package:baddel/features/notifications/notifications_system.dart';
 import 'package:baddel/ui/screens/garage/upload_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:baddel/ui/theme.dart';
 
 class MainLayout extends ConsumerStatefulWidget {
   const MainLayout({super.key});
@@ -62,9 +63,9 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
 
       // Floating Action Button (The Upload Button)
       floatingActionButton: FloatingActionButton(
-        backgroundColor: const Color(0xFF2962FF),
+        backgroundColor: AppTheme.neonGreen,
         tooltip: 'Upload Item',
-        child: const Icon(Icons.add, color: Colors.white),
+        child: const Icon(Icons.add, color: AppTheme.deepObsidian),
         onPressed: () {
           Navigator.push(context, MaterialPageRoute(builder: (_) => const UploadScreen()));
         },
@@ -72,9 +73,9 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
 
       bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: Colors.black,
-        selectedItemColor: const Color(0xFF2962FF),
-        unselectedItemColor: Colors.grey,
+        backgroundColor: AppTheme.deepObsidian,
+        selectedItemColor: AppTheme.neonGreen,
+        unselectedItemColor: AppTheme.secondaryText,
         currentIndex: _currentIndex,
         onTap: (index) => setState(() => _currentIndex = index),
         items: const [
