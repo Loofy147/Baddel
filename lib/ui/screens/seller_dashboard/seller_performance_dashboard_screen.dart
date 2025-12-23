@@ -1,4 +1,5 @@
 import 'package:baddel/core/providers.dart';
+import 'package:baddel/ui/screens/seller_dashboard/geographic_heatmap_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -51,6 +52,13 @@ class SellerPerformanceDashboardScreen extends ConsumerWidget {
               description: metrics['geographicHeatmap']['description'],
               icon: Icons.map,
               color: Colors.purple,
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const GeographicHeatmapScreen(),
+                  ),
+                );
+              },
             ),
           ],
         ),
@@ -65,6 +73,7 @@ class MetricCard extends StatelessWidget {
   final String description;
   final IconData icon;
   final Color color;
+  final VoidCallback? onTap;
 
   const MetricCard({
     super.key,
@@ -73,14 +82,17 @@ class MetricCard extends StatelessWidget {
     required this.description,
     required this.icon,
     required this.color,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 4.0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: Padding(
+    return InkWell(
+      onTap: onTap,
+      child: Card(
+        elevation: 4.0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
