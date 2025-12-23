@@ -1,4 +1,5 @@
 import 'package:baddel/core/providers.dart';
+import 'package:baddel/ui/screens/seller_dashboard/ab_testing_screen.dart';
 import 'package:baddel/ui/screens/seller_dashboard/geographic_heatmap_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -56,6 +57,21 @@ class SellerPerformanceDashboardScreen extends ConsumerWidget {
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (context) => const GeographicHeatmapScreen(),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+            MetricCard(
+              title: 'A/B Testing',
+              value: metrics['abTesting']['value'],
+              description: metrics['abTesting']['description'],
+              icon: Icons.science,
+              color: Colors.teal,
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const ABTestingScreen(),
                   ),
                 );
               },

@@ -308,4 +308,14 @@ class SupabaseService {
       throw AppException.fromSupabaseError(e);
     }
   }
+
+  // 15. GET SELLER ANALYTICS
+  Future<Map<String, dynamic>> getSellerAnalytics() async {
+    try {
+      final response = await _client.rpc('get_seller_analytics');
+      return response as Map<String, dynamic>;
+    } catch (e) {
+      throw AppException.fromSupabaseError(e);
+    }
+  }
 }
