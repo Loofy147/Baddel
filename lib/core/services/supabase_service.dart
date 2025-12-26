@@ -7,9 +7,6 @@ import 'package:baddel/core/models/search_options.dart';
 import 'package:baddel/core/infrastructure/connectivity_service.dart';
 import 'auth_service.dart';
 import 'error_handler.dart';
-import 'logger.dart';
-
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class SupabaseService {
   final SupabaseClient _client;

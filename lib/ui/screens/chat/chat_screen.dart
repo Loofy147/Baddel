@@ -1,6 +1,5 @@
 import 'package:baddel/core/validators/input_validator.dart';
 import 'package:flutter/material.dart';
-import 'package:baddel/core/services/supabase_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:baddel/core/providers.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'; // To get current user ID

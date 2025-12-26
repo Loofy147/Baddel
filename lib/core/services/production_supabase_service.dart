@@ -10,9 +10,8 @@ import 'auth_service.dart';
 class ProductionSupabaseService {
   final SupabaseClient _client;
   final AuthService _authService;
-  final ConnectivityService _connectivityService;
 
-  ProductionSupabaseService(this._client, this._authService, this._connectivityService);
+  ProductionSupabaseService(this._client, this._authService);
 
   Future<String> _getCurrentUserId() async {
     final user = await _authService.currentUser;
@@ -24,7 +23,7 @@ class ProductionSupabaseService {
 
   /// Fetches items with automatic retry and error handling.
   Future<List<Item>> getFeedItems() async {
-    return await ErrorRecoveryStrategy.executeWithRetry(() async {
+    final result = await ErrorRecoveryStrategy.executeWithRetry(() async {
       try {
         final response = await _client
             .from('items')
@@ -39,11 +38,12 @@ class ProductionSupabaseService {
         throw AppException.fromSupabaseError(e);
       }
     });
+    return result ?? [];
   }
 
   /// Uploads an image with progress tracking and retry logic.
   Future<String> uploadImage(File imageFile) async {
-    return await ErrorRecoveryStrategy.executeWithRetry(() async {
+    final result = await ErrorRecoveryStrategy.executeWithRetry(() async {
       try {
         final fileName = '${DateTime.now().millisecondsSinceEpoch}_${imageFile.path.split('/').last}';
         final path = 'uploads/$fileName';
@@ -61,6 +61,10 @@ class ProductionSupabaseService {
         throw AppException.fromSupabaseError(e);
       }
     });
+     if (result == null) {
+      throw AppException('Failed to upload image after multiple retries.', code: 'UPLOAD_FAILED');
+    }
+    return result;
   }
 
   /// Creates a new item listing with optimistic UI support.
@@ -131,7 +135,7 @@ class ProductionSupabaseService {
 
   /// Fetches user profile with stats and achievements.
   Future<Map<String, dynamic>> getUserProfile() async {
-    return await ErrorRecoveryStrategy.executeWithRetry(() async {
+    final result = await ErrorRecoveryStrategy.executeWithRetry(() async {
       try {
         final userId = await _getCurrentUserId();
         
@@ -159,6 +163,7 @@ class ProductionSupabaseService {
         throw AppException.fromSupabaseError(e);
       }
     });
+     return result ?? {};
   }
 
   /// Real-time stream for chat messages with optimistic UI support.
@@ -169,7 +174,7 @@ class ProductionSupabaseService {
         .eq('offer_id', offerId)
         .order('created_at', ascending: true)
         .handleError((error) {
-          Logger.instance.e('Chat Stream Error', error: error);
+          Logger.error('Chat Stream Error', error);
         });
   }
 }

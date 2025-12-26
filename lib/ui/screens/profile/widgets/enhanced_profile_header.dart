@@ -110,7 +110,7 @@ class _EnhancedProfileHeaderState extends State<EnhancedProfileHeader> with Sing
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          phone,
+                          widget.phone,
                           style: AppTheme.textTheme.titleLarge,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,

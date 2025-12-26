@@ -40,7 +40,7 @@ class BaddelApp extends StatelessWidget {
       theme: ThemeData(
         brightness: Brightness.dark,
         primaryColor: AppTheme.accentColor,
-        scaffoldBackgroundColor: AppTheme.primaryBackground,
+        scaffoldBackgroundColor: AppTheme.deepObsidian,
         textTheme: AppTheme.textTheme,
         useMaterial3: true,
       ),

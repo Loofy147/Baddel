@@ -1,7 +1,7 @@
 // lib/features/favorites/favorites_system.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide Provider;
 import 'package:baddel/core/models/item_model.dart';
 
 // ============================================================================
@@ -42,8 +42,8 @@ class FavoritesService {
     final result = await _supabase
         .from('favorites')
         .select('id')
-        .eq('user_id': userId)
-        .eq('item_id': itemId)
+        .eq('user_id', userId)
+        .eq('item_id', itemId)
         .maybeSingle();
 
     return result != null;
@@ -57,7 +57,7 @@ class FavoritesService {
     final response = await _supabase
         .from('favorites')
         .select('*, items(*)')
-        .eq('user_id': userId)
+        .eq('user_id', userId)
         .order('created_at', ascending: false);
 
     return (response as List)

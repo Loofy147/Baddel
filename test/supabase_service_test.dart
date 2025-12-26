@@ -14,6 +14,8 @@ class MockUser extends Mock implements User {}
 class MockPostgrestQueryBuilder<T> extends Mock implements PostgrestQueryBuilder<T> {}
 class MockSupabaseStorageClient extends Mock implements SupabaseStorageClient {}
 class MockStorageFileApi extends Mock implements StorageFileApi {}
+class MockConnectivityService extends Mock implements ConnectivityService {}
+
 
 void main() {
   late SupabaseService supabaseService;
@@ -21,6 +23,7 @@ void main() {
   late MockAuthService mockAuthService;
   late MockUser mockUser;
   late MockPostgrestQueryBuilder<dynamic> mockQueryBuilder;
+  late MockConnectivityService mockConnectivityService;
 
   setUp(() {
     // 1. Initialize mocks
@@ -28,22 +31,25 @@ void main() {
     mockAuthService = MockAuthService();
     mockUser = MockUser();
     mockQueryBuilder = MockPostgrestQueryBuilder();
+    mockConnectivityService = MockConnectivityService();
 
     // 2. Instantiate the service with mocks
-    supabaseService = SupabaseService(mockSupabaseClient, mockAuthService);
+    supabaseService = SupabaseService(mockSupabaseClient, mockAuthService, mockConnectivityService);
 
     // 3. Stub the common method calls
     // Mock the auth flow to always return a logged-in user
     when(mockAuthService.currentUser).thenAnswer((_) async => mockUser);
     when(mockUser.id).thenReturn('test_user_id');
+     when(mockConnectivityService.isOnline).thenAnswer((_) async => true);
+
 
     // Mock the Supabase fluent interface
     when(mockSupabaseClient.from(any)).thenReturn(mockQueryBuilder);
-    when(mockQueryBuilder.select(any)).thenReturn(mockQueryBuilder);
+    when(mockQueryBuilder.select()).thenReturn(mockQueryBuilder);
     when(mockQueryBuilder.update(any)).thenReturn(mockQueryBuilder);
     when(mockQueryBuilder.insert(any)).thenReturn(mockQueryBuilder);
     when(mockQueryBuilder.eq(any, any)).thenReturn(mockQueryBuilder);
-    when(mockQueryBuilder.single()).thenReturn(mockQueryBuilder);
+    when(mockQueryBuilder.single()).thenAnswer((_) async => {});
   });
 
   group('SupabaseService Unit Tests', () {

@@ -12,6 +12,10 @@ final supabaseClientProvider = Provider<SupabaseClient>((ref) {
 
 // 1. Service Provider
 // A simple provider for the SupabaseService, so we can access it from other providers.
+final connectivityServiceProvider = Provider<ConnectivityService>((ref) {
+  return ConnectivityService();
+});
+
 final supabaseServiceProvider = Provider<SupabaseService>((ref) {
   final client = ref.watch(supabaseClientProvider);
   final authService = ref.watch(authServiceProvider);

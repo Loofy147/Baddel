@@ -79,6 +79,7 @@ class SellerPerformanceDashboardScreen extends ConsumerWidget {
           ],
         ),
       ),
+      ),
     );
   }
 }
