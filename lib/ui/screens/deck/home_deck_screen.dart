@@ -1,5 +1,4 @@
 import 'package:baddel/core/services/recommendation_service.dart';
-import 'package:baddel/ui/screens/chat/offers_screen.dart';
 import 'package:baddel/ui/widgets/action_sheet.dart';
 import 'package:baddel/ui/widgets/advanced_card_swiper.dart';
 import 'package:baddel/ui/widgets/advanced_card_swiper_controller.dart';

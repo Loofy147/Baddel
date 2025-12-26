@@ -129,7 +129,7 @@ class InventoryCard extends ConsumerWidget {
                 Navigator.of(dialogContext).pop();
                 try {
                   await ref.read(supabaseServiceProvider).deleteItem(item.id);
-                  final _ = ref.refresh(myInventoryProvider);
+                  ref.refresh(myInventoryProvider);
                 } on AppException catch (e) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text("❌ ${e.message}")),

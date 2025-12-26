@@ -28,7 +28,6 @@ class _PremiumChatScreenState extends State<PremiumChatScreen>
   final _supabase = Supabase.instance.client;
 
   List<ChatMessage> _messages = [];
-  bool _isTyping = false;
   bool _otherUserTyping = false;
   Timer? _typingTimer;
   Timer? _typingDebounce;

@@ -1,6 +1,4 @@
-import 'package:baddel/core/services/error_handler.dart';
 import 'package:flutter/material.dart';
-import 'package:baddel/core/services/auth_service.dart';
 import 'package:baddel/core/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:baddel/features/favorites/favorites_system.dart';
