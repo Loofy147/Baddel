@@ -1,9 +1,7 @@
 import 'package:baddel/core/services/error_handler.dart';
 import 'package:baddel/core/services/logger.dart';
-import 'package:baddel/core/services/supabase_service.dart';
 import 'package:baddel/core/validators/input_validator.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';

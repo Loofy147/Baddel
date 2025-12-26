@@ -36,7 +36,6 @@ class _AdvancedCardSwiperState extends State<AdvancedCardSwiper>
   bool _isDragging = false;
   late AnimationController _swipeAnimationController;
   late Animation<Offset> _swipeAnimation;
-  SwipeDirection? _swipeDirection;
 
   @override
   void initState() {

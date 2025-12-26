@@ -15,7 +15,7 @@ class AppException implements Exception {
   // errors into user-friendly messages.
   factory AppException.fromSupabaseError(dynamic error) {
     // Log the original error for debugging purposes.
-    Logger.instance.e('Supabase Error Caught', error: error, stackTrace: StackTrace.current);
+    Logger.error('Supabase Error Caught', error, StackTrace.current);
 
     if (error is PostgrestException) {
       // Handle specific Postgres error codes for more granular feedback.

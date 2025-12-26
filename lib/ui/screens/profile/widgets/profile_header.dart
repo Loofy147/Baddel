@@ -23,14 +23,14 @@ class ProfileHeader extends StatelessWidget {
     }
     if (score > 80) {
       level = "Boss";
-      color = AppTheme.electricBlue;
+      color = AppTheme.neonGreen;
     }
 
     return Container(
       margin: const EdgeInsets.all(AppTheme.spacingMedium),
       padding: const EdgeInsets.all(AppTheme.spacingMedium),
       decoration: BoxDecoration(
-        color: AppTheme.cardBackground,
+        color: AppTheme.darkSurface,
         borderRadius: AppTheme.borderRadius,
         border: AppTheme.border,
       ),

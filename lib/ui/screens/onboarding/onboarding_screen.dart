@@ -129,7 +129,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
   }
 
   Widget _buildPage(OnboardingPage page, int index) {
-    final offset = (_currentPage - index).clamp(-1.0, 1.0);
+    (_currentPage - index).clamp(-1.0, 1.0);
 
     return FadeTransition(
       opacity: _animationController,

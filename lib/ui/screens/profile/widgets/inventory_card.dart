@@ -51,7 +51,7 @@ class InventoryCard extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(item.title, style: AppTheme.textTheme.titleLarge),
-                    Text("${item.price} DA", style: AppTheme.textTheme.bodyLarge?.copyWith(color: AppTheme.electricBlue)),
+                    Text("${item.price} DA", style: AppTheme.textTheme.bodyLarge?.copyWith(color: AppTheme.neonGreen)),
                   ],
                 ),
                 IconButton(
@@ -70,7 +70,7 @@ class InventoryCard extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: AppTheme.cardBackground,
+        backgroundColor: AppTheme.darkSurface,
         title: Row(
           children: [
             const Icon(Icons.bolt, color: Colors.amber),
@@ -115,7 +115,7 @@ class InventoryCard extends ConsumerWidget {
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          backgroundColor: AppTheme.cardBackground,
+          backgroundColor: AppTheme.darkSurface,
           title: Text('Delete Item?', style: AppTheme.textTheme.headlineMedium),
           content: Text('Are you sure you want to delete "${item.title}"? This cannot be undone.', style: AppTheme.textTheme.bodyMedium),
           actions: <Widget>[

@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:baddel/core/models/item_model.dart';
 import 'package:baddel/core/models/search_options.dart';
-import 'package:baddel/core/services/supabase_service.dart';
 import 'package:baddel/ui/widgets/common/skeleton_loader.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:baddel/core/providers.dart';
@@ -75,12 +74,6 @@ class _EnhancedSearchScreenState extends ConsumerState<EnhancedSearchScreen> {
     'Other',
   ];
 
-  final List<String> _recentSearches = [
-    'PlayStation 5',
-    'iPhone',
-    'Laptop',
-  ];
-
   @override
   void dispose() {
     _searchController.dispose();
@@ -91,7 +84,7 @@ class _EnhancedSearchScreenState extends ConsumerState<EnhancedSearchScreen> {
   @override
   Widget build(BuildContext context) {
     final filteredItems = ref.watch(filteredItemsProvider(widget.userLocation));
-    final hasFilters = _hasActiveFilters();
+    _hasActiveFilters();
 
     return Scaffold(
       backgroundColor: Colors.black,

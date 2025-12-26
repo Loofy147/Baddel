@@ -5,7 +5,6 @@ import 'package:baddel/ui/screens/profile/profile_screen.dart';
 import 'package:baddel/features/notifications/notifications_system.dart';
 import 'package:baddel/ui/screens/garage/upload_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:baddel/ui/theme.dart';
 
 class MainLayout extends ConsumerStatefulWidget {

@@ -20,7 +20,7 @@ class AppException implements Exception {
   /// Factory constructor to create an AppException from a Supabase error.
   /// This translates backend errors into user-friendly messages with recovery strategies.
   factory AppException.fromSupabaseError(dynamic error) {
-    Logger.instance.e('Supabase Error Caught', error: error, stackTrace: StackTrace.current);
+    Logger.error('Supabase Error Caught', error, StackTrace.current);
 
     if (error is PostgrestException) {
       switch (error.code) {
@@ -132,11 +132,11 @@ class ErrorRecoveryStrategy {
       } catch (e) {
         retryCount++;
         if (retryCount >= maxRetries) {
-          Logger.instance.e('Max retries exceeded', error: e);
+          Logger.error('Max retries exceeded', e);
           rethrow;
         }
 
-        Logger.instance.w('Retry attempt $retryCount/$maxRetries after ${currentDelay.inSeconds}s');
+        Logger.warning('Retry attempt $retryCount/$maxRetries after ${currentDelay.inSeconds}s');
         await Future.delayed(currentDelay);
 
         if (exponentialBackoff) {
@@ -156,7 +156,7 @@ class ErrorRecoveryStrategy {
       return await onlineOperation();
     } catch (e) {
       if (e.toString().contains('SocketException') || e.toString().contains('Connection')) {
-        Logger.instance.w('Network error detected, attempting offline fallback');
+        Logger.warning('Network error detected, attempting offline fallback');
         return await offlineFallback();
       }
       rethrow;

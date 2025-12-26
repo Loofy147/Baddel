@@ -1,4 +1,3 @@
-import 'package:baddel/core/models/item_model.dart';
 import 'package:baddel/core/providers.dart';
 import 'package:baddel/ui/screens/seller_dashboard/create_ab_test_screen.dart';
 import 'package:flutter/material.dart';
